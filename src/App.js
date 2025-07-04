@@ -69,7 +69,7 @@ function App() {
     // Handle incoming remote stream
    pc.ontrack = (event) => {
   console.log("📺 Received remote track:", event.track.kind);
-  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimer); // ADD THIS LINE
+  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current); // ADD THIS LINE
   if (remoteVideoRef.current && event.streams[0]) {
     remoteVideoRef.current.srcObject = event.streams[0];
     setStatus("Connected!");
@@ -270,11 +270,10 @@ function App() {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
 
 // CLEAR ANY EXISTING TIMER FIRST
-  if (connectionTimer) {
-    console.log("🕐 Clearing previous timeout");
-    clearTimeout(connectionTimer);
-    setConnectionTimer(null);
-  }
+  if (connectionTimerRef.current) {
+  clearTimeout(connectionTimerRef.current);
+  connectionTimerRef.current = null;
+}
 
     setPartnerId(data.partnerId);
     setIsPolite(data.role === "polite");
