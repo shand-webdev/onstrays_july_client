@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
 
-const SIGNAL_SERVER_URL = "http://localhost:3001"; // update this for production!
+const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com"; // backend url
 
 function App() {
   // AGREEMENT STATE
