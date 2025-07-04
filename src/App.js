@@ -66,17 +66,19 @@ function App() {
     }
 
     // Handle incoming remote stream
-    pc.ontrack = (event) => {
+   pc.ontrack = (event) => {
   console.log("📺 Received remote track:", event.track.kind);
+  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimer); // ADD THIS LINE
   if (remoteVideoRef.current && event.streams[0]) {
     remoteVideoRef.current.srcObject = event.streams[0];
     setStatus("Connected!");
     
-    // CLEAR TIMEOUT - SUCCESS!
     if (connectionTimer) {
       console.log("🕐 Connection successful - clearing timeout");
       clearTimeout(connectionTimer);
       setConnectionTimer(null);
+    } else {
+      console.log("❌ No connectionTimer to clear!"); // ADD THIS LINE
     }
   }
 };
