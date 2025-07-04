@@ -18,6 +18,7 @@ function App() {
   const localStreamRef = useRef(null);
   const [isPolite, setIsPolite] = useState(false);
   const [partnerId, setPartnerId] = useState(null);
+  const [connectionTimer, setConnectionTimer] = useState(null); 
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
@@ -151,6 +152,15 @@ function App() {
 
     return pc;
   }, [partnerId]);
+
+  // Clear connection timeout
+const clearConnectionTimeout = useCallback(() => {
+  if (connectionTimer) {
+    clearTimeout(connectionTimer);
+    setConnectionTimer(null);
+    console.log("🕐 Connection timeout cleared");
+  }
+}, [connectionTimer]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
