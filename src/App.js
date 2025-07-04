@@ -162,6 +162,21 @@ const clearConnectionTimeout = useCallback(() => {
   }
 }, [connectionTimer]);
 
+// Start connection timeout
+const startConnectionTimeout = useCallback(() => {
+  // Clear any existing timeout first
+  clearConnectionTimeout();
+  
+  console.log("⏰ Starting 30s connection timeout");
+  const timer = setTimeout(() => {
+    console.log("⏰ Connection timeout - auto skipping");
+    setStatus("Connection timeout - finding new match...");
+    handleNext();
+  }, 30000); // 30 seconds
+  
+  setConnectionTimer(timer);
+}, [clearConnectionTimeout, handleNext]);
+
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
     if (pcRef.current) {
@@ -260,6 +275,8 @@ const clearConnectionTimeout = useCallback(() => {
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
     
+ startConnectionTimeout(); //timeout 
+
     // Create new peer connection for this match
     const pc = createPeerConnection();
     
