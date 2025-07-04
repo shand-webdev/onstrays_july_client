@@ -23,18 +23,18 @@ function App() {
   const isSettingRemoteAnswerPendingRef = useRef(false);
 
   // WebRTC configuration
- const pcConfig = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-  ],
-  iceCandidatePoolSize: 10,
-};
+  const pcConfig = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ],
+    iceCandidatePoolSize: 10,
+  };
 
-  // Create peer connection
+  // UPDATED: Create peer connection without automatic negotiation
   const createPeerConnection = useCallback(() => {
     if (pcRef.current) {
       pcRef.current.close();
@@ -46,13 +46,14 @@ function App() {
     // Add local stream tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
+        console.log("➕ Adding track:", track.kind);
         pc.addTrack(track, localStreamRef.current);
       });
     }
 
     // Handle incoming remote stream
     pc.ontrack = (event) => {
-      console.log("Received remote track:", event.track.kind);
+      console.log("📺 Received remote track:", event.track.kind);
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
         setStatus("Connected!");
@@ -68,13 +69,13 @@ function App() {
           partnerId: partnerId,
         });
       } else if (!event.candidate) {
-          console.log("🧊 ICE gathering complete");
-        }
+        console.log("🧊 ICE gathering complete");
+      }
     };
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      console.log("Connection state:", pc.connectionState);
+      console.log("🔗 Connection state:", pc.connectionState);
       switch (pc.connectionState) {
         case "connected":
           setStatus("Connected!");
@@ -135,29 +136,10 @@ function App() {
       }
     };
 
-    // Perfect Negotiation: Handle negotiation needed
-    pc.onnegotiationneeded = async () => {
-      try {
-        console.log("Negotiation needed, isPolite:", isPolite);
-        makingOfferRef.current = true;
-        
-        await pc.setLocalDescription();
-        if (socket && partnerId) {
-          console.log("Sending offer to partner:", partnerId);
-          socket.emit("offer", {
-            offer: pc.localDescription,
-            partnerId: partnerId,
-          });
-        }
-      } catch (error) {
-        console.error("Error in negotiation:", error);
-      } finally {
-        makingOfferRef.current = false;
-      }
-    };
+    // REMOVED: onnegotiationneeded handler - we'll do manual negotiation
 
-    return pc;
-  }, [socket, partnerId, isPolite]);
+    return pc; // Return the peer connection
+  }, [socket, partnerId]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
@@ -177,7 +159,7 @@ function App() {
   // Handle incoming offer (Perfect Negotiation)
   const handleOffer = useCallback(async (data) => {
     try {
-      console.log("📥 Received offer, isPolite:", isPolite, "from partner:", partnerId);
+      console.log("📥 Received offer from partner");
       
       const offerCollision = 
         makingOfferRef.current || 
@@ -186,9 +168,10 @@ function App() {
       ignoreOfferRef.current = !isPolite && offerCollision;
       
       if (ignoreOfferRef.current) {
-        console.log("🚫 Ignoring offer due to collision (impolite peer)");
+        console.log("🚫 Ignoring offer due to collision");
         return;
       }
+
       console.log("✅ Processing offer...");
       isSettingRemoteAnswerPendingRef.current = true;
       
@@ -199,7 +182,7 @@ function App() {
       await pcRef.current.setLocalDescription(answer);
       
       if (socket && partnerId) {
-        console.log("📤 Sending answer to partner:", partnerId);
+        console.log("📤 Sending answer to partner");
         socket.emit("answer", {
           answer: pcRef.current.localDescription,
           partnerId: partnerId,
@@ -214,7 +197,7 @@ function App() {
   // Handle incoming answer (Perfect Negotiation)
   const handleAnswer = useCallback(async (data) => {
     try {
-      console.log("📥 Received answer from partner:", partnerId);
+      console.log("📥 Received answer from partner");
       
       if (isSettingRemoteAnswerPendingRef.current) {
         console.log("Waiting for remote answer to be set...");
@@ -222,7 +205,7 @@ function App() {
       }
       
       await pcRef.current.setRemoteDescription(data.answer);
-      console.log("✅Answer set successfully");
+      console.log("✅ Answer processed successfully");
     } catch (error) {
       console.error("❌ Error handling answer:", error);
     }
@@ -231,25 +214,45 @@ function App() {
   // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (data) => {
     try {
-      if (pcRef.current && data.candidate) 
-        console.log("📥Received ICE candidate:", data.candidate.type);
+      if (pcRef.current && data.candidate) {
+        console.log("📥 Received ICE candidate:", data.candidate.type);
         await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-      console.log("✅ ICE candidate added");
+        console.log("✅ ICE candidate added");
+      }
     } catch (error) {
-      console.error("❌Error adding ICE candidate:", error);
+      console.error("❌ Error adding ICE candidate:", error);
     }
   }, []);
 
-  // Handle matched event from server
+  // UPDATED: Handle matched event with manual negotiation
   const handleMatched = useCallback((data) => {
-    console.log("Matched with:", data.partnerId, "Role:", data.role);
+    console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
     setPartnerId(data.partnerId);
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
     
     // Create new peer connection for this match
-    createPeerConnection();
-  }, [createPeerConnection]);
+    const pc = createPeerConnection();
+    
+    // MANUAL NEGOTIATION: If impolite (initiator), start offer immediately
+    if (data.role === "impolite") {
+      console.log("🚀 Starting manual negotiation as impolite");
+      setTimeout(async () => {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          
+          console.log("📤 Sending manual offer");
+          socket.emit("offer", {
+            offer: pc.localDescription,
+            partnerId: data.partnerId,
+          });
+        } catch (error) {
+          console.error("❌ Manual offer error:", error);
+        }
+      }, 1000); // Small delay to ensure connection is ready
+    }
+  }, [createPeerConnection, socket]);
 
   // Handle partner disconnected
   const handlePartnerDisconnected = useCallback(() => {
@@ -276,43 +279,43 @@ function App() {
   }, [socket]);
 
   // Initialize socket connection and media
- useEffect(() => {
-  if (!agreed || socket) return;
-  
-  const initConnection = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: true, 
-      audio: true 
-    });
+  useEffect(() => {
+    if (!agreed || socket) return;
     
-    localStreamRef.current = stream;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
+    const initConnection = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
 
-    const s = io(SIGNAL_SERVER_URL, { 
-      transports: ["websocket", "polling"]
-    });
+      const s = io(SIGNAL_SERVER_URL, { 
+        transports: ["websocket", "polling"]
+      });
 
-    setSocket(s);
+      setSocket(s);
 
-    s.on("connect", () => {
-      console.log("✅ Connected:", s.id);
-      setStatus("Waiting for match...");
-    });
+      s.on("connect", () => {
+        console.log("✅ Connected:", s.id);
+        setStatus("Waiting for match...");
+      });
 
-    s.on("matched", handleMatched);
-    s.on("partner_disconnected", handlePartnerDisconnected);
-    s.on("partner_next", handlePartnerNext);
-    s.on("offer", handleOffer);
-    s.on("answer", handleAnswer);
-    s.on("ice-candidate", handleIceCandidate);
-  };
+      s.on("matched", handleMatched);
+      s.on("partner_disconnected", handlePartnerDisconnected);
+      s.on("partner_next", handlePartnerNext);
+      s.on("offer", handleOffer);
+      s.on("answer", handleAnswer);
+      s.on("ice-candidate", handleIceCandidate);
+    };
 
-  initConnection();
+    initConnection();
 
-  // NO CLEANUP - just for testing
-}, [agreed]);
+    // NO CLEANUP - just for testing
+  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
   // Handle next button click
   const handleNext = useCallback(() => {
