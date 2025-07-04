@@ -198,6 +198,8 @@ function App() {
           answer: pcRef.current.localDescription,
           partnerId: partnerId,
         });
+      }else {
+      console.error("❌ Cannot send answer - missing socket or partnerId");
       }
     } catch (error) {
       console.error("❌ Error handling offer:", error);
