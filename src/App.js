@@ -18,6 +18,7 @@ function App() {
   const localStreamRef = useRef(null);
   const [isPolite, setIsPolite] = useState(false);
   const [partnerId, setPartnerId] = useState(null);
+  const [connectionTimer, setConnectionTimer] = useState(null);
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
@@ -66,12 +67,18 @@ function App() {
 
     // Handle incoming remote stream
     pc.ontrack = (event) => {
-      console.log("📺 Received remote track:", event.track.kind);
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        setStatus("Connected!");
-      }
-    };
+  console.log("📺 Received remote track:", event.track.kind);
+  if (remoteVideoRef.current && event.streams[0]) {
+    remoteVideoRef.current.srcObject = event.streams[0];
+    setStatus("Connected!");
+    
+    // CLEAR TIMEOUT - SUCCESS!
+    if (connectionTimer) {
+      clearTimeout(connectionTimer);
+      setConnectionTimer(null);
+    }
+  }
+};
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
@@ -260,6 +267,29 @@ function App() {
     setPartnerId(data.partnerId);
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
+
+     // ADD TIMEOUT HERE (no functions, just direct logic)
+  const timer = setTimeout(() => {
+    console.log("⏰ Connection timeout - auto skipping");
+    setStatus("Connection timeout - finding new match...");
+    
+    // Directly call socket.emit instead of handleNext
+    if (socketRef.current) {
+      socketRef.current.emit("next");
+      setStatus("Finding new match...");
+      // Clean up manually
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+      setPartnerId(null);
+    }
+  }, 30000); // 30 seconds
+  
+  setConnectionTimer(timer);
     
 
     // Create new peer connection for this match
