@@ -22,6 +22,9 @@ function App() {
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
 
+  // Store socket reference for manual negotiation
+  const socketRef = useRef(null);
+
   // WebRTC configuration
   const pcConfig = {
     iceServers: [
@@ -34,7 +37,7 @@ function App() {
     iceCandidatePoolSize: 10,
   };
 
-  // UPDATED: Create peer connection without automatic negotiation
+  // Create peer connection
   const createPeerConnection = useCallback(() => {
     if (pcRef.current) {
       pcRef.current.close();
@@ -62,9 +65,9 @@ function App() {
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socket) {
+      if (event.candidate && socketRef.current) {
         console.log("🧊 Sending ICE candidate:", event.candidate.type);
-        socket.emit("ice-candidate", {
+        socketRef.current.emit("ice-candidate", {
           candidate: event.candidate.toJSON(),
           partnerId: partnerId,
         });
@@ -94,14 +97,13 @@ function App() {
       }
     };
 
-    // FIXED: Enhanced ICE connection state handling
+    // Enhanced ICE connection state handling
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state:", pc.iceConnectionState);
       
       switch (pc.iceConnectionState) {
         case "failed":
           console.log("ICE connection failed, attempting restart...");
-          // Only restart once, then give up
           if (!pc._iceRestartAttempted) {
             pc._iceRestartAttempted = true;
             setTimeout(() => {
@@ -117,7 +119,6 @@ function App() {
           break;
         case "disconnected":
           console.log("ICE connection disconnected, waiting for reconnection...");
-          // Wait a bit before declaring failure
           setTimeout(() => {
             if (pc.iceConnectionState === "disconnected") {
               setStatus("Connection unstable - may need to skip");
@@ -126,20 +127,20 @@ function App() {
           break;
         case "connected":
           console.log("ICE connection established");
-          pc._iceRestartAttempted = false; // Reset flag
+          pc._iceRestartAttempted = false;
           setStatus("Connected!");
           break;
         case "checking":
           console.log("ICE connection checking...");
           setStatus("Connecting...");
           break;
+        default:
+          break;
       }
     };
 
-    // REMOVED: onnegotiationneeded handler - we'll do manual negotiation
-
-    return pc; // Return the peer connection
-  }, [socket, partnerId]);
+    return pc;
+  }, [partnerId]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
@@ -156,7 +157,7 @@ function App() {
     isSettingRemoteAnswerPendingRef.current = false;
   }, []);
 
-  // Handle incoming offer (Perfect Negotiation)
+  // Handle incoming offer
   const handleOffer = useCallback(async (data) => {
     try {
       console.log("📥 Received offer from partner");
@@ -181,9 +182,9 @@ function App() {
       const answer = await pcRef.current.createAnswer();
       await pcRef.current.setLocalDescription(answer);
       
-      if (socket && partnerId) {
+      if (socketRef.current && partnerId) {
         console.log("📤 Sending answer to partner");
-        socket.emit("answer", {
+        socketRef.current.emit("answer", {
           answer: pcRef.current.localDescription,
           partnerId: partnerId,
         });
@@ -192,9 +193,9 @@ function App() {
       console.error("❌ Error handling offer:", error);
       isSettingRemoteAnswerPendingRef.current = false;
     }
-  }, [isPolite, socket, partnerId]);
+  }, [isPolite, partnerId]);
 
-  // Handle incoming answer (Perfect Negotiation)
+  // Handle incoming answer
   const handleAnswer = useCallback(async (data) => {
     try {
       console.log("📥 Received answer from partner");
@@ -209,7 +210,7 @@ function App() {
     } catch (error) {
       console.error("❌ Error handling answer:", error);
     }
-  }, [partnerId]);
+  }, []);
 
   // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (data) => {
@@ -224,7 +225,7 @@ function App() {
     }
   }, []);
 
-  // UPDATED: Handle matched event with manual negotiation
+  // Handle matched event with manual negotiation
   const handleMatched = useCallback((data) => {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
     setPartnerId(data.partnerId);
@@ -234,25 +235,29 @@ function App() {
     // Create new peer connection for this match
     const pc = createPeerConnection();
     
-    // MANUAL NEGOTIATION: If impolite (initiator), start offer immediately
+    // Manual negotiation for impolite peer
     if (data.role === "impolite") {
       console.log("🚀 Starting manual negotiation as impolite");
       setTimeout(async () => {
-         try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        console.log("📤 Sending manual offer");
-        socketInstance.emit("offer", {
-          offer: pc.localDescription,
-          partnerId: data.partnerId,
-        });
-      } catch (error) {
-        console.error("❌ Manual offer error:", error);
-      }
-    }, 1000);
-  }
-}, [createPeerConnection]);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          
+          console.log("📤 Sending manual offer");
+          if (socketRef.current) {
+            socketRef.current.emit("offer", {
+              offer: pc.localDescription,
+              partnerId: data.partnerId,
+            });
+          } else {
+            console.error("❌ No socket available for offer");
+          }
+        } catch (error) {
+          console.error("❌ Manual offer error:", error);
+        }
+      }, 1000);
+    }
+  }, [createPeerConnection]);
 
   // Handle partner disconnected
   const handlePartnerDisconnected = useCallback(() => {
@@ -270,51 +275,48 @@ function App() {
     setStatus("Waiting for match...");
   }, [cleanupPeerConnection]);
 
-  // ENHANCED: Heartbeat function to keep connection alive
-  const sendHeartbeat = useCallback(() => {
-    if (socket && socket.connected) {
-      console.log("Sending heartbeat to server");
-      socket.emit('heartbeat');
-    }
-  }, [socket]);
-
   // Initialize socket connection and media
   useEffect(() => {
     if (!agreed || socket) return;
     
     const initConnection = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        const s = io(SIGNAL_SERVER_URL, { 
+          transports: ["websocket", "polling"]
+        });
+
+        setSocket(s);
+        socketRef.current = s; // Store in ref for immediate access
+
+        s.on("connect", () => {
+          console.log("✅ Connected:", s.id);
+          setStatus("Waiting for match...");
+        });
+
+        s.on("matched", handleMatched);
+        s.on("partner_disconnected", handlePartnerDisconnected);
+        s.on("partner_next", handlePartnerNext);
+        s.on("offer", handleOffer);
+        s.on("answer", handleAnswer);
+        s.on("ice-candidate", handleIceCandidate);
+
+      } catch (error) {
+        console.error("Error initializing:", error);
+        setStatus("Camera/Mic access denied.");
       }
-
-      const s = io(SIGNAL_SERVER_URL, { 
-        transports: ["websocket", "polling"]
-      });
-
-      setSocket(s);
-
-      s.on("connect", () => {
-        console.log("✅ Connected:", s.id);
-        setStatus("Waiting for match...");
-      });
-
-s.on("matched", (data) => handleMatched(data, s));
-      s.on("partner_disconnected", handlePartnerDisconnected);
-      s.on("partner_next", handlePartnerNext);
-      s.on("offer", handleOffer);
-      s.on("answer", handleAnswer);
-      s.on("ice-candidate", handleIceCandidate);
     };
 
     initConnection();
-
-    // NO CLEANUP - just for testing
   }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
   // Handle next button click
