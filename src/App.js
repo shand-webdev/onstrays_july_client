@@ -219,7 +219,9 @@ function App() {
         console.log("📥 Received ICE candidate:", data.candidate.type);
         await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
         console.log("✅ ICE candidate added");
-      }
+      }else {
+      console.log("⏭️ Skipping ICE candidate - no remote description yet");
+    }
     } catch (error) {
       console.error("❌ Error adding ICE candidate:", error);
     }
@@ -306,7 +308,10 @@ function App() {
         s.on("matched", handleMatched);
         s.on("partner_disconnected", handlePartnerDisconnected);
         s.on("partner_next", handlePartnerNext);
-        s.on("offer", handleOffer);
+s.on("offer", (data) => {
+  console.log("🎯 OFFER EVENT RECEIVED:", data);
+  handleOffer(data);
+});
         s.on("answer", handleAnswer);
         s.on("ice-candidate", handleIceCandidate);
 
