@@ -298,15 +298,8 @@ function App() {
 
         // ENHANCED: Create socket connection with better configuration
         const s = io(SIGNAL_SERVER_URL, { 
-          transports: ["websocket", "polling"],
-          timeout: 60000,
-          forceNew: true,
-          reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          maxReconnectionAttempts: 5,
-          randomizationFactor: 0.5
-        });
+  transports: ["websocket", "polling"]
+});
 
         if (cleanup) {
           s.disconnect();
