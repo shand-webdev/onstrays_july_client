@@ -60,6 +60,7 @@ function App() {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
+        console.log("Sending ICE candidate:", event.candidate.type);
         socket.emit("ice-candidate", {
           candidate: event.candidate.toJSON(),
           partnerId: partnerId,
@@ -88,12 +89,45 @@ function App() {
       }
     };
 
-    // Handle ICE connection state changes
+    // FIXED: Enhanced ICE connection state handling
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state:", pc.iceConnectionState);
-      if (pc.iceConnectionState === "failed") {
-        // Restart ICE if connection fails
-        pc.restartIce();
+      
+      switch (pc.iceConnectionState) {
+        case "failed":
+          console.log("ICE connection failed, attempting restart...");
+          // Only restart once, then give up
+          if (!pc._iceRestartAttempted) {
+            pc._iceRestartAttempted = true;
+            setTimeout(() => {
+              if (pc.iceConnectionState === "failed") {
+                console.log("Executing ICE restart...");
+                pc.restartIce();
+              }
+            }, 2000);
+          } else {
+            console.log("ICE restart already attempted, giving up");
+            setStatus("Connection failed - please try next");
+          }
+          break;
+        case "disconnected":
+          console.log("ICE connection disconnected, waiting for reconnection...");
+          // Wait a bit before declaring failure
+          setTimeout(() => {
+            if (pc.iceConnectionState === "disconnected") {
+              setStatus("Connection unstable - may need to skip");
+            }
+          }, 5000);
+          break;
+        case "connected":
+          console.log("ICE connection established");
+          pc._iceRestartAttempted = false; // Reset flag
+          setStatus("Connected!");
+          break;
+        case "checking":
+          console.log("ICE connection checking...");
+          setStatus("Connecting...");
+          break;
       }
     };
 
@@ -105,6 +139,7 @@ function App() {
         
         await pc.setLocalDescription();
         if (socket && partnerId) {
+          console.log("Sending offer to partner:", partnerId);
           socket.emit("offer", {
             offer: pc.localDescription,
             partnerId: partnerId,
@@ -138,7 +173,7 @@ function App() {
   // Handle incoming offer (Perfect Negotiation)
   const handleOffer = useCallback(async (data) => {
     try {
-      console.log("Received offer, isPolite:", isPolite);
+      console.log("Received offer, isPolite:", isPolite, "from partner:", partnerId);
       
       const offerCollision = 
         makingOfferRef.current || 
@@ -160,6 +195,7 @@ function App() {
       await pcRef.current.setLocalDescription(answer);
       
       if (socket && partnerId) {
+        console.log("Sending answer to partner:", partnerId);
         socket.emit("answer", {
           answer: pcRef.current.localDescription,
           partnerId: partnerId,
@@ -174,7 +210,7 @@ function App() {
   // Handle incoming answer (Perfect Negotiation)
   const handleAnswer = useCallback(async (data) => {
     try {
-      console.log("Received answer");
+      console.log("Received answer from partner:", partnerId);
       
       if (isSettingRemoteAnswerPendingRef.current) {
         console.log("Waiting for remote answer to be set...");
@@ -182,15 +218,17 @@ function App() {
       }
       
       await pcRef.current.setRemoteDescription(data.answer);
+      console.log("Answer set successfully");
     } catch (error) {
       console.error("Error handling answer:", error);
     }
-  }, []);
+  }, [partnerId]);
 
   // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (data) => {
     try {
       if (pcRef.current && data.candidate) {
+        console.log("Received ICE candidate:", data.candidate.type);
         await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
       }
     } catch (error) {
@@ -225,11 +263,20 @@ function App() {
     setStatus("Waiting for match...");
   }, [cleanupPeerConnection]);
 
+  // ENHANCED: Heartbeat function to keep connection alive
+  const sendHeartbeat = useCallback(() => {
+    if (socket && socket.connected) {
+      console.log("Sending heartbeat to server");
+      socket.emit('heartbeat');
+    }
+  }, [socket]);
+
   // Initialize socket connection and media
   useEffect(() => {
     if (!agreed) return;
 
     let cleanup = false;
+    let heartbeatInterval;
 
     const initializeConnection = async () => {
       try {
@@ -249,11 +296,16 @@ function App() {
           localVideoRef.current.srcObject = stream;
         }
 
-        // Create socket connection
+        // ENHANCED: Create socket connection with better configuration
         const s = io(SIGNAL_SERVER_URL, { 
           transports: ["websocket", "polling"],
-          
-          
+          timeout: 60000,
+          forceNew: true,
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          maxReconnectionAttempts: 5,
+          randomizationFactor: 0.5
         });
 
         if (cleanup) {
@@ -263,17 +315,64 @@ function App() {
 
         setSocket(s);
 
-        // Socket event listeners
+        // ENHANCED: Socket event listeners with better debugging
         s.on("connect", () => {
-          console.log("Connected to server");
+          console.log("Connected to server with ID:", s.id);
           setStatus("Waiting for match...");
+          
+          // Start heartbeat interval
+          heartbeatInterval = setInterval(() => {
+            sendHeartbeat();
+          }, 30000); // Every 30 seconds
         });
 
-        s.on("disconnect", () => {
-          console.log("Disconnected from server");
-          setStatus("Disconnected from server");
+        s.on("disconnect", (reason) => {
+          console.log("Disconnected from server. Reason:", reason);
+          setStatus(`Disconnected: ${reason}`);
+          
+          // Clear heartbeat interval
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+          }
         });
 
+        // ENHANCED: Additional debugging listeners
+        s.on("reconnect", (attemptNumber) => {
+          console.log("Reconnected after", attemptNumber, "attempts");
+          setStatus("Reconnected! Waiting for match...");
+        });
+
+        s.on("reconnect_error", (error) => {
+          console.error("Reconnection error:", error);
+          setStatus("Reconnection failed");
+        });
+
+        s.on("reconnect_failed", () => {
+          console.log("Reconnection failed completely");
+          setStatus("Connection failed - please refresh");
+        });
+
+        // ENHANCED: Connection monitoring
+        s.on("ping", () => {
+          console.log("Ping sent to server");
+        });
+
+        s.on("pong", (latency) => {
+          console.log("Pong received, latency:", latency);
+        });
+
+        // ENHANCED: Heartbeat acknowledgment
+        s.on("heartbeat_ack", () => {
+          console.log("Heartbeat acknowledged by server");
+        });
+
+        // ENHANCED: Server shutdown notification
+        s.on("server_shutdown", () => {
+          console.log("Server is shutting down");
+          setStatus("Server restarting - please wait...");
+        });
+
+        // Original event listeners
         s.on("matched", handleMatched);
         s.on("partner_disconnected", handlePartnerDisconnected);
         s.on("partner_next", handlePartnerNext);
@@ -297,6 +396,11 @@ function App() {
     return () => {
       cleanup = true;
       
+      // Clear heartbeat interval
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+      
       // Clean up media
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -312,7 +416,7 @@ function App() {
         setSocket(null);
       }
     };
-  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate, cleanupPeerConnection]);
+  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate, cleanupPeerConnection, sendHeartbeat]);
 
   // Handle next button click
   const handleNext = useCallback(() => {
