@@ -152,7 +152,7 @@ function App() {
 
     return pc;
   }, [partnerId]);
-  
+
    // Handle next button click
   const handleNext = useCallback(() => {
     if (socket) {
@@ -182,7 +182,15 @@ const startConnectionTimeout = useCallback(() => {
   const timer = setTimeout(() => {
     console.log("⏰ Connection timeout - auto skipping");
     setStatus("Connection timeout - finding new match...");
-    handleNext();
+    
+     // Call handleNext directly without dependency
+    if (socket) {
+      console.log("Requesting next match");
+      socket.emit("next");
+      setStatus("Finding new match...");
+      cleanupPeerConnection();
+    }
+
   }, 30000); // 30 seconds
   
   setConnectionTimer(timer);
@@ -313,7 +321,7 @@ const startConnectionTimeout = useCallback(() => {
         }
       }, 1000);
     }
-  }, [createPeerConnection]);
+  }, [createPeerConnection,startConnectionTimeout]);
 
   // Handle partner disconnected
   const handlePartnerDisconnected = useCallback(() => {
