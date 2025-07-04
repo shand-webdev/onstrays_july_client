@@ -238,21 +238,21 @@ function App() {
     if (data.role === "impolite") {
       console.log("🚀 Starting manual negotiation as impolite");
       setTimeout(async () => {
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          
-          console.log("📤 Sending manual offer");
-          socket.emit("offer", {
-            offer: pc.localDescription,
-            partnerId: data.partnerId,
-          });
-        } catch (error) {
-          console.error("❌ Manual offer error:", error);
-        }
-      }, 1000); // Small delay to ensure connection is ready
-    }
-  }, [createPeerConnection, socket]);
+         try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        console.log("📤 Sending manual offer");
+        socketInstance.emit("offer", {
+          offer: pc.localDescription,
+          partnerId: data.partnerId,
+        });
+      } catch (error) {
+        console.error("❌ Manual offer error:", error);
+      }
+    }, 1000);
+  }
+}, [createPeerConnection]);
 
   // Handle partner disconnected
   const handlePartnerDisconnected = useCallback(() => {
@@ -304,7 +304,7 @@ function App() {
         setStatus("Waiting for match...");
       });
 
-      s.on("matched", handleMatched);
+s.on("matched", (data) => handleMatched(data, s));
       s.on("partner_disconnected", handlePartnerDisconnected);
       s.on("partner_next", handlePartnerNext);
       s.on("offer", handleOffer);
