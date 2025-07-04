@@ -252,8 +252,8 @@ function App() {
         // Create socket connection
         const s = io(SIGNAL_SERVER_URL, { 
           transports: ["websocket", "polling"],
-          timeout: 20000,
-          forceNew: true
+          
+          
         });
 
         if (cleanup) {
