@@ -272,122 +272,43 @@ function App() {
   }, [socket]);
 
   // Initialize socket connection and media
-  useEffect(() => {
-    if (!agreed) return;
+ useEffect(() => {
+  if (!agreed || socket) return;
+  
+  const initConnection = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: true, 
+      audio: true 
+    });
+    
+    localStreamRef.current = stream;
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+    }
 
-    let socketInstance = null;
-    let heartbeatInterval = null;
-    let isMounted = true;
+    const s = io(SIGNAL_SERVER_URL, { 
+      transports: ["websocket", "polling"]
+    });
 
-    const initializeConnection = async () => {
-      try {
-        // Get user media
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        });
-        
-        if (!isMounted) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
+    setSocket(s);
 
-        localStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+    s.on("connect", () => {
+      console.log("✅ Connected:", s.id);
+      setStatus("Waiting for match...");
+    });
 
-        // Create socket with minimal, stable configuration
-        socketInstance = io(SIGNAL_SERVER_URL, { 
-          transports: ["websocket", "polling"],
-          reconnection: false, // Disable auto-reconnection to prevent loops
-          timeout: 20000
-        });
+    s.on("matched", handleMatched);
+    s.on("partner_disconnected", handlePartnerDisconnected);
+    s.on("partner_next", handlePartnerNext);
+    s.on("offer", handleOffer);
+    s.on("answer", handleAnswer);
+    s.on("ice-candidate", handleIceCandidate);
+  };
 
-        if (!isMounted) {
-          socketInstance.disconnect();
-          return;
-        }
+  initConnection();
 
-        setSocket(socketInstance);
-
-        // Socket event listeners
-        socketInstance.on("connect", () => {
-          console.log("✅ Connected to server with ID:", socketInstance.id);
-          setStatus("Waiting for match...");
-          
-          // Start heartbeat
-          heartbeatInterval = setInterval(() => {
-            if (socketInstance?.connected) {
-              socketInstance.emit('heartbeat');
-            }
-          }, 30000);
-        });
-
-        socketInstance.on("disconnect", (reason) => {
-          console.log("❌ Disconnected from server. Reason:", reason);
-          setStatus(`Disconnected: ${reason}`);
-          
-          if (heartbeatInterval) {
-            clearInterval(heartbeatInterval);
-            heartbeatInterval = null;
-          }
-        });
-
-        // Add all your other event listeners
-        socketInstance.on("matched", handleMatched);
-        socketInstance.on("partner_disconnected", handlePartnerDisconnected);
-        socketInstance.on("partner_next", handlePartnerNext);
-        socketInstance.on("offer", handleOffer);
-        socketInstance.on("answer", handleAnswer);
-        socketInstance.on("ice-candidate", handleIceCandidate);
-
-        socketInstance.on("connect_error", (error) => {
-          console.error("🔥 Connection error:", error);
-          setStatus("Connection error - please refresh");
-        });
-
-        socketInstance.on("heartbeat_ack", () => {
-          console.log("💓 Heartbeat acknowledged");
-        });
-
-      } catch (error) {
-        console.error("🚫 Error initializing:", error);
-        setStatus("Camera/Mic access denied.");
-      }
-    };
-
-    initializeConnection();
-
-    // Cleanup function
-    return () => {
-      isMounted = false;
-      
-      console.log("🧹 Cleaning up connection...");
-      
-      // Clear heartbeat
-      if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-      }
-      
-      // Clean up media
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      
-      // Clean up peer connection
-      cleanupPeerConnection();
-      
-      // Clean up socket
-      if (socketInstance && socketInstance.connected) {
-        socketInstance.removeAllListeners();
-        socketInstance.disconnect();
-      }
-      
-      setSocket(null);
-    };
-  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate, cleanupPeerConnection]);
+  // NO CLEANUP - just for testing
+}, [agreed]);
 
   // Handle next button click
   const handleNext = useCallback(() => {
