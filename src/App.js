@@ -62,7 +62,7 @@ function App() {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
-        console.log("Sending ICE candidate:", event.candidate.type);
+        console.log("🧊 Sending ICE candidate:", event.candidate.type);
         socket.emit("ice-candidate", {
           candidate: event.candidate.toJSON(),
           partnerId: partnerId,
@@ -177,7 +177,7 @@ function App() {
   // Handle incoming offer (Perfect Negotiation)
   const handleOffer = useCallback(async (data) => {
     try {
-      console.log("Received offer, isPolite:", isPolite, "from partner:", partnerId);
+      console.log("📥 Received offer, isPolite:", isPolite, "from partner:", partnerId);
       
       const offerCollision = 
         makingOfferRef.current || 
@@ -186,10 +186,10 @@ function App() {
       ignoreOfferRef.current = !isPolite && offerCollision;
       
       if (ignoreOfferRef.current) {
-        console.log("Ignoring offer due to collision (impolite peer)");
+        console.log("🚫 Ignoring offer due to collision (impolite peer)");
         return;
       }
-
+      console.log("✅ Processing offer...");
       isSettingRemoteAnswerPendingRef.current = true;
       
       await pcRef.current.setRemoteDescription(data.offer);
@@ -199,14 +199,14 @@ function App() {
       await pcRef.current.setLocalDescription(answer);
       
       if (socket && partnerId) {
-        console.log("Sending answer to partner:", partnerId);
+        console.log("📤 Sending answer to partner:", partnerId);
         socket.emit("answer", {
           answer: pcRef.current.localDescription,
           partnerId: partnerId,
         });
       }
     } catch (error) {
-      console.error("Error handling offer:", error);
+      console.error("❌ Error handling offer:", error);
       isSettingRemoteAnswerPendingRef.current = false;
     }
   }, [isPolite, socket, partnerId]);
@@ -214,7 +214,7 @@ function App() {
   // Handle incoming answer (Perfect Negotiation)
   const handleAnswer = useCallback(async (data) => {
     try {
-      console.log("Received answer from partner:", partnerId);
+      console.log("📥 Received answer from partner:", partnerId);
       
       if (isSettingRemoteAnswerPendingRef.current) {
         console.log("Waiting for remote answer to be set...");
@@ -222,21 +222,21 @@ function App() {
       }
       
       await pcRef.current.setRemoteDescription(data.answer);
-      console.log("Answer set successfully");
+      console.log("✅Answer set successfully");
     } catch (error) {
-      console.error("Error handling answer:", error);
+      console.error("❌ Error handling answer:", error);
     }
   }, [partnerId]);
 
   // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (data) => {
     try {
-      if (pcRef.current && data.candidate) {
-        console.log("Received ICE candidate:", data.candidate.type);
+      if (pcRef.current && data.candidate) 
+        console.log("📥Received ICE candidate:", data.candidate.type);
         await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-      }
+      console.log("✅ ICE candidate added");
     } catch (error) {
-      console.error("Error adding ICE candidate:", error);
+      console.error("❌Error adding ICE candidate:", error);
     }
   }, []);
 
