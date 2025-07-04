@@ -191,12 +191,16 @@ function App() {
       
       const answer = await pcRef.current.createAnswer();
       await pcRef.current.setLocalDescription(answer);
+
+       // FIX: Use partnerId from the offer data instead of state
+    const targetPartnerId = data.partnerId || partnerId;
+    console.log("🔍 About to send answer to:", targetPartnerId);
       
-      if (socketRef.current && partnerId) {
-        console.log("📤 Sending answer to partner");
-        socketRef.current.emit("answer", {
-          answer: pcRef.current.localDescription,
-          partnerId: partnerId,
+      if (socketRef.current && targetPartnerId) {
+      console.log("📤 Sending answer to partner");
+      socketRef.current.emit("answer", {
+        answer: pcRef.current.localDescription,
+        partnerId: targetPartnerId,
         });
       }else {
       console.error("❌ Cannot send answer - missing socket or partnerId");
