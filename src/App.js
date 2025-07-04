@@ -74,6 +74,7 @@ function App() {
     
     // CLEAR TIMEOUT - SUCCESS!
     if (connectionTimer) {
+      console.log("🕐 Connection successful - clearing timeout");
       clearTimeout(connectionTimer);
       setConnectionTimer(null);
     }
@@ -264,6 +265,14 @@ function App() {
   // Handle matched event with manual negotiation
   const handleMatched = useCallback((data) => {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
+
+// CLEAR ANY EXISTING TIMER FIRST
+  if (connectionTimer) {
+    console.log("🕐 Clearing previous timeout");
+    clearTimeout(connectionTimer);
+    setConnectionTimer(null);
+  }
+
     setPartnerId(data.partnerId);
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
@@ -287,7 +296,7 @@ function App() {
       }
       setPartnerId(null);
     }
-  }, 30000); // 30 seconds
+  }, 15000); // 15 seconds
   
   setConnectionTimer(timer);
     
