@@ -18,7 +18,8 @@ function App() {
   const localStreamRef = useRef(null);
   const [isPolite, setIsPolite] = useState(false);
   const [partnerId, setPartnerId] = useState(null);
-  const [connectionTimer, setConnectionTimer] = useState(null);
+  const connectionTimerRef = useRef(null);
+
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
@@ -73,10 +74,10 @@ function App() {
     remoteVideoRef.current.srcObject = event.streams[0];
     setStatus("Connected!");
     
-    if (connectionTimer) {
+    if (connectionTimerRef.current) {
       console.log("🕐 Connection successful - clearing timeout");
-      clearTimeout(connectionTimer);
-      setConnectionTimer(null);
+      clearTimeout(connectionTimerRef.current);
+      connectionTimerRef.current = null;
     } else {
       console.log("❌ No connectionTimer to clear!"); // ADD THIS LINE
     }
@@ -300,7 +301,7 @@ function App() {
     }
   }, 15000); // 15 seconds
   
-  setConnectionTimer(timer);
+  connectionTimerRef.current = timer;
     
 
     // Create new peer connection for this match
