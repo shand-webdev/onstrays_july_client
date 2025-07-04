@@ -23,14 +23,16 @@ function App() {
   const isSettingRemoteAnswerPendingRef = useRef(false);
 
   // WebRTC configuration
-  const pcConfig = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-    ],
-    iceCandidatePoolSize: 10,
-  };
+ const pcConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+  ],
+  iceCandidatePoolSize: 10,
+};
 
   // Create peer connection
   const createPeerConnection = useCallback(() => {
@@ -65,7 +67,9 @@ function App() {
           candidate: event.candidate.toJSON(),
           partnerId: partnerId,
         });
-      }
+      } else if (!event.candidate) {
+          console.log("🧊 ICE gathering complete");
+        }
     };
 
     // Handle connection state changes
