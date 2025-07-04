@@ -152,15 +152,6 @@ function App() {
     return pc;
   }, [partnerId]);
 
-   // Handle next button click
-  const handleNext = useCallback(() => {
-    if (socket) {
-      console.log("Requesting next match");
-      socket.emit("next");
-      setStatus("Finding new match...");
-      cleanupPeerConnection();
-    }
-  }, [socket, cleanupPeerConnection]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
@@ -176,6 +167,16 @@ function App() {
     ignoreOfferRef.current = false;
     isSettingRemoteAnswerPendingRef.current = false;
   }, []);
+
+   // Handle next button click
+  const handleNext = useCallback(() => {
+    if (socket) {
+      console.log("Requesting next match");
+      socket.emit("next");
+      setStatus("Finding new match...");
+      cleanupPeerConnection();
+    }
+  }, [socket, cleanupPeerConnection]);
 
   // Handle incoming offer
   const handleOffer = useCallback(async (data) => {
