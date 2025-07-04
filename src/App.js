@@ -18,7 +18,6 @@ function App() {
   const localStreamRef = useRef(null);
   const [isPolite, setIsPolite] = useState(false);
   const [partnerId, setPartnerId] = useState(null);
-  const [connectionTimer, setConnectionTimer] = useState(null); 
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
@@ -163,39 +162,6 @@ function App() {
     }
   }, [socket, cleanupPeerConnection]);
 
-
-  // Clear connection timeout
-const clearConnectionTimeout = useCallback(() => {
-  if (connectionTimer) {
-    clearTimeout(connectionTimer);
-    setConnectionTimer(null);
-    console.log("🕐 Connection timeout cleared");
-  }
-}, [connectionTimer]);
-
-// Start connection timeout
-const startConnectionTimeout = useCallback(() => {
-  // Clear any existing timeout first
-  clearConnectionTimeout();
-  
-  console.log("⏰ Starting 30s connection timeout");
-  const timer = setTimeout(() => {
-    console.log("⏰ Connection timeout - auto skipping");
-    setStatus("Connection timeout - finding new match...");
-    
-     // Call handleNext directly without dependency
-    if (socket) {
-      console.log("Requesting next match");
-      socket.emit("next");
-      setStatus("Finding new match...");
-      cleanupPeerConnection();
-    }
-
-  }, 30000); // 30 seconds
-  
-  setConnectionTimer(timer);
-}, [clearConnectionTimeout, handleNext]);
-
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
     if (pcRef.current) {
@@ -294,7 +260,6 @@ const startConnectionTimeout = useCallback(() => {
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
     
- startConnectionTimeout(); //timeout 
 
     // Create new peer connection for this match
     const pc = createPeerConnection();
@@ -321,7 +286,7 @@ const startConnectionTimeout = useCallback(() => {
         }
       }, 1000);
     }
-  }, [createPeerConnection,startConnectionTimeout]);
+  }, [createPeerConnection]);
 
   // Handle partner disconnected
   const handlePartnerDisconnected = useCallback(() => {
