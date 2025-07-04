@@ -301,7 +301,8 @@ function App() {
   }, 15000); // 15 seconds
   
   connectionTimerRef.current = timer;
-    
+   console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
+ 
 
     // Create new peer connection for this match
     const pc = createPeerConnection();
