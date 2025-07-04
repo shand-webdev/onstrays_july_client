@@ -275,8 +275,9 @@ function App() {
   useEffect(() => {
     if (!agreed) return;
 
-    let cleanup = false;
-    let heartbeatInterval;
+    let socketInstance = null;
+    let heartbeatInterval = null;
+    let isMounted = true;
 
     const initializeConnection = async () => {
       try {
@@ -286,7 +287,7 @@ function App() {
           audio: true 
         });
         
-        if (cleanup) {
+        if (!isMounted) {
           stream.getTracks().forEach(track => track.stop());
           return;
         }
@@ -296,100 +297,75 @@ function App() {
           localVideoRef.current.srcObject = stream;
         }
 
-        // ENHANCED: Create socket connection with better configuration
-        const s = io(SIGNAL_SERVER_URL, { 
-  transports: ["websocket", "polling"]
-});
+        // Create socket with minimal, stable configuration
+        socketInstance = io(SIGNAL_SERVER_URL, { 
+          transports: ["websocket", "polling"],
+          reconnection: false, // Disable auto-reconnection to prevent loops
+          timeout: 20000
+        });
 
-        if (cleanup) {
-          s.disconnect();
+        if (!isMounted) {
+          socketInstance.disconnect();
           return;
         }
 
-        setSocket(s);
+        setSocket(socketInstance);
 
-        // ENHANCED: Socket event listeners with better debugging
-        s.on("connect", () => {
-          console.log("Connected to server with ID:", s.id);
+        // Socket event listeners
+        socketInstance.on("connect", () => {
+          console.log("✅ Connected to server with ID:", socketInstance.id);
           setStatus("Waiting for match...");
           
-          // Start heartbeat interval
+          // Start heartbeat
           heartbeatInterval = setInterval(() => {
-            sendHeartbeat();
-          }, 30000); // Every 30 seconds
+            if (socketInstance?.connected) {
+              socketInstance.emit('heartbeat');
+            }
+          }, 30000);
         });
 
-        s.on("disconnect", (reason) => {
-          console.log("Disconnected from server. Reason:", reason);
+        socketInstance.on("disconnect", (reason) => {
+          console.log("❌ Disconnected from server. Reason:", reason);
           setStatus(`Disconnected: ${reason}`);
           
-          // Clear heartbeat interval
           if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
           }
         });
 
-        // ENHANCED: Additional debugging listeners
-        s.on("reconnect", (attemptNumber) => {
-          console.log("Reconnected after", attemptNumber, "attempts");
-          setStatus("Reconnected! Waiting for match...");
+        // Add all your other event listeners
+        socketInstance.on("matched", handleMatched);
+        socketInstance.on("partner_disconnected", handlePartnerDisconnected);
+        socketInstance.on("partner_next", handlePartnerNext);
+        socketInstance.on("offer", handleOffer);
+        socketInstance.on("answer", handleAnswer);
+        socketInstance.on("ice-candidate", handleIceCandidate);
+
+        socketInstance.on("connect_error", (error) => {
+          console.error("🔥 Connection error:", error);
+          setStatus("Connection error - please refresh");
         });
 
-        s.on("reconnect_error", (error) => {
-          console.error("Reconnection error:", error);
-          setStatus("Reconnection failed");
-        });
-
-        s.on("reconnect_failed", () => {
-          console.log("Reconnection failed completely");
-          setStatus("Connection failed - please refresh");
-        });
-
-        // ENHANCED: Connection monitoring
-        s.on("ping", () => {
-          console.log("Ping sent to server");
-        });
-
-        s.on("pong", (latency) => {
-          console.log("Pong received, latency:", latency);
-        });
-
-        // ENHANCED: Heartbeat acknowledgment
-        s.on("heartbeat_ack", () => {
-          console.log("Heartbeat acknowledged by server");
-        });
-
-        // ENHANCED: Server shutdown notification
-        s.on("server_shutdown", () => {
-          console.log("Server is shutting down");
-          setStatus("Server restarting - please wait...");
-        });
-
-        // Original event listeners
-        s.on("matched", handleMatched);
-        s.on("partner_disconnected", handlePartnerDisconnected);
-        s.on("partner_next", handlePartnerNext);
-        s.on("offer", handleOffer);
-        s.on("answer", handleAnswer);
-        s.on("ice-candidate", handleIceCandidate);
-
-        s.on("connect_error", (error) => {
-          console.error("Connection error:", error);
-          setStatus("Connection error. Retrying...");
+        socketInstance.on("heartbeat_ack", () => {
+          console.log("💓 Heartbeat acknowledged");
         });
 
       } catch (error) {
-        console.error("Error initializing:", error);
+        console.error("🚫 Error initializing:", error);
         setStatus("Camera/Mic access denied.");
       }
     };
 
     initializeConnection();
 
+    // Cleanup function
     return () => {
-      cleanup = true;
+      isMounted = false;
       
-      // Clear heartbeat interval
+      console.log("🧹 Cleaning up connection...");
+      
+      // Clear heartbeat
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
       }
@@ -404,12 +380,14 @@ function App() {
       cleanupPeerConnection();
       
       // Clean up socket
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
+      if (socketInstance && socketInstance.connected) {
+        socketInstance.removeAllListeners();
+        socketInstance.disconnect();
       }
+      
+      setSocket(null);
     };
-  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate, cleanupPeerConnection, sendHeartbeat]);
+  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate, cleanupPeerConnection]);
 
   // Handle next button click
   const handleNext = useCallback(() => {
