@@ -152,6 +152,17 @@ function App() {
 
     return pc;
   }, [partnerId]);
+  
+   // Handle next button click
+  const handleNext = useCallback(() => {
+    if (socket) {
+      console.log("Requesting next match");
+      socket.emit("next");
+      setStatus("Finding new match...");
+      cleanupPeerConnection();
+    }
+  }, [socket, cleanupPeerConnection]);
+
 
   // Clear connection timeout
 const clearConnectionTimeout = useCallback(() => {
@@ -367,16 +378,7 @@ s.on("offer", (data) => {
     initConnection();
   }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
-  // Handle next button click
-  const handleNext = useCallback(() => {
-    if (socket) {
-      console.log("Requesting next match");
-      socket.emit("next");
-      setStatus("Finding new match...");
-      cleanupPeerConnection();
-    }
-  }, [socket, cleanupPeerConnection]);
-
+ 
   // LANDING PAGE
   if (!agreed) {
     return (
