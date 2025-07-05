@@ -37,22 +37,18 @@ function App() {
       //{ urls: "stun:stun4.l.google.com:19302" },
     
       {
-      urls: "turn:numb.viagenie.ca",
-      username: "webrtc@live.com",
-      credential: "muazkh"
+      urls: "turn:relay.metered.ca:80",
+      username: "openrelayproject", 
+      credential: "openrelayproject"
     },
     {
-      urls: "turn:192.158.29.39:3478?transport=udp",
-      username: "28224511:1379330808",
-      credential: "JZEOEt2V3Qb0y27GRntt2u2PAYA="
-    },
-    {
-      urls: "turn:192.158.29.39:3478?transport=tcp",
-      username: "28224511:1379330808", 
-      credential: "JZEOEt2V3Qb0y27GRntt2u2PAYA="
+      urls: "turn:turn.bistri.com:80",
+      username: "homeo",
+      credential: "homeo"
     }
   ],
   iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'relay'
 };
 
   // Create peer connection
