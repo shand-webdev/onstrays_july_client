@@ -337,6 +337,13 @@ function App() {
     setStatus("Partner disconnected. Finding new match...");
     cleanupPeerConnection();
     setStatus("Waiting for match...");
+
+if (socketRef.current) {
+    console.log("🔄 Rejoining queue after partner disconnect");
+    // The backend should automatically add disconnected users back to queue
+    // But we can ensure it by emitting a rejoin event
+  }
+
   }, [cleanupPeerConnection]);
 
   // Handle partner next
