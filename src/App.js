@@ -92,16 +92,18 @@ function App() {
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        console.log("🧊 Sending ICE candidate:", event.candidate.type);
-        socketRef.current.emit("ice-candidate", {
-          candidate: event.candidate.toJSON(),
-          partnerId: partnerId,
-        });
-      } else if (!event.candidate) {
-        console.log("🧊 ICE gathering complete");
-      }
-    };
+  if (event.candidate && socketRef.current) {
+    console.log("🧊 Connection type:", event.candidate.type); // ← NEW DEBUG LINE
+    console.log("🧊 ICE candidate full:", event.candidate.candidate); // ← NEW DEBUG LINE
+    console.log("🧊 Sending ICE candidate:", event.candidate.type);
+    socketRef.current.emit("ice-candidate", {
+      candidate: event.candidate.toJSON(),
+      partnerId: partnerId,
+    });
+  } else if (!event.candidate) {
+    console.log("🧊 ICE gathering complete");
+  }
+};
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
