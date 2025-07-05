@@ -48,7 +48,6 @@ function App() {
     }
   ],
   iceCandidatePoolSize: 10,
-  iceTransportPolicy: 'relay'
 };
 
   // Create peer connection
