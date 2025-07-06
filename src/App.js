@@ -20,12 +20,17 @@ function App() {
   const [partnerId, setPartnerId] = useState(null);
   const connectionTimerRef = useRef(null);
 
-  //User reconnection state logs
+  // User reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectionTimer, setReconnectionTimer] = useState(0);
   const [connectionLost, setConnectionLost] = useState(false);
   const reconnectionTimerRef = useRef(null);
   const reconnectionCountdownRef = useRef(null);
+
+  // Network detection state
+  const [isOnline, setIsOnline] = useState(true);
+  const [showOfflineWarning, setShowOfflineWarning] = useState(false);
+  const onlineCheckIntervalRef = useRef(null);
 
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
@@ -33,6 +38,20 @@ function App() {
 
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
+
+  // Internet connection checker
+  const checkInternetConnection = async () => {
+    try {
+      await fetch('https://www.google.com/generate_204', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-store'
+      });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
 
   // Reconnection countdown function
   const startReconnectionCountdown = useCallback(() => {
@@ -67,6 +86,36 @@ function App() {
     setReconnectionTimer(0);
     setConnectionLost(false);
   }, []);
+
+  // Handle online/offline status
+  const handleOnlineStatus = useCallback(async () => {
+    const online = await checkInternetConnection();
+    setIsOnline(online);
+    
+    if (!online && !showOfflineWarning) {
+      setShowOfflineWarning(true);
+      // Pause any ongoing reconnection attempts
+      if (isReconnecting) {
+        clearReconnectionTimers();
+        setStatus("📵 You're offline - check your internet");
+      } else if (partnerId) {
+        setStatus("📵 You're offline - connection lost");
+      } else {
+        setStatus("📵 No internet connection");
+      }
+    } else if (online && showOfflineWarning) {
+      setShowOfflineWarning(false);
+      // Resume based on current state
+      if (partnerId && connectionLost) {
+        setStatus("🔄 Internet restored - trying to reconnect...");
+        startReconnectionCountdown();
+      } else if (partnerId) {
+        setStatus("✅ Internet restored - resuming chat");
+      } else {
+        setStatus("✅ Internet restored - waiting for match...");
+      }
+    }
+  }, [showOfflineWarning, isReconnecting, partnerId, connectionLost, clearReconnectionTimers, startReconnectionCountdown]);
 
   // Create peer connection with dynamic Cloudflare TURN credentials
   const createPeerConnection = useCallback(async () => {
@@ -210,7 +259,7 @@ function App() {
           
         case "disconnected":
           console.log("ICE connection disconnected, attempting reconnection...");
-          if (!isReconnecting && !connectionLost) {
+          if (!isReconnecting && !connectionLost && !showOfflineWarning) {
             setStatus(`📵 Connection lost, trying to reconnect... (${reconnectionTimer}s)`);
             startReconnectionCountdown();
             
@@ -249,7 +298,7 @@ function App() {
     };
 
     return pc;
-  }, [partnerId, isReconnecting, connectionLost, reconnectionTimer, startReconnectionCountdown, clearReconnectionTimers]);
+  }, [partnerId, isReconnecting, connectionLost, reconnectionTimer, showOfflineWarning, startReconnectionCountdown, clearReconnectionTimers]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
@@ -497,6 +546,43 @@ function App() {
     initConnection();
   }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
+  // Monitor internet connection
+  useEffect(() => {
+    // Check immediately
+    handleOnlineStatus();
+    
+    // Check every 3 seconds
+    onlineCheckIntervalRef.current = setInterval(handleOnlineStatus, 3000);
+    
+    // Listen to browser online/offline events
+    const handleBrowserOnline = () => {
+      console.log('📶 Browser detected online');
+      handleOnlineStatus();
+    };
+    
+    const handleBrowserOffline = () => {
+      console.log('📵 Browser detected offline');
+      setIsOnline(false);
+      setShowOfflineWarning(true);
+      if (partnerId) {
+        setStatus("📵 You're offline - connection lost");
+      } else {
+        setStatus("📵 No internet connection");
+      }
+    };
+    
+    window.addEventListener('online', handleBrowserOnline);
+    window.addEventListener('offline', handleBrowserOffline);
+    
+    return () => {
+      if (onlineCheckIntervalRef.current) {
+        clearInterval(onlineCheckIntervalRef.current);
+      }
+      window.removeEventListener('online', handleBrowserOnline);
+      window.removeEventListener('offline', handleBrowserOffline);
+    };
+  }, [handleOnlineStatus, partnerId]);
+
   // LANDING PAGE
   if (!agreed) {
     return (
@@ -637,17 +723,28 @@ function App() {
         marginBottom: "20px", 
         fontSize: "1.2rem",
         textAlign: "center",
-        background: connectionLost ? "rgba(239, 68, 68, 0.2)" : 
+        background: showOfflineWarning ? "rgba(239, 68, 68, 0.2)" :
+                    connectionLost ? "rgba(239, 68, 68, 0.2)" : 
                     isReconnecting ? "rgba(251, 191, 36, 0.2)" : 
                     "rgba(255, 255, 255, 0.1)",
         padding: "10px 20px",
         borderRadius: "10px",
         backdropFilter: "blur(5px)",
-        border: connectionLost ? "2px solid #ef4444" : 
+        border: showOfflineWarning ? "2px solid #ef4444" :
+                connectionLost ? "2px solid #ef4444" : 
                 isReconnecting ? "2px solid #f59e0b" : 
                 "1px solid transparent"
       }}>
-        {connectionLost ? (
+        {showOfflineWarning ? (
+          <div>
+            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
+              📵 You're Offline
+            </div>
+            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
+              Check your internet connection
+            </div>
+          </div>
+        ) : connectionLost ? (
           <div>
             <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
               ❌ Connection Lost
@@ -666,32 +763,41 @@ function App() {
             </div>
           </div>
         ) : (
-          status
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+            <span style={{ 
+              width: "8px", 
+              height: "8px", 
+              borderRadius: "50%", 
+              backgroundColor: isOnline ? "#10b981" : "#ef4444" 
+            }}></span>
+            {status}
+          </div>
         )}
       </div>
       
       <div style={{ display: "flex", gap: "15px" }}>
         <button 
           onClick={handleNext} 
-          disabled={!socket || isReconnecting}
+          disabled={!socket || isReconnecting || showOfflineWarning}
           style={{ 
             padding: "14px 40px", 
             borderRadius: "10px", 
-            background: !socket || isReconnecting ? "#6b7280" : 
+            background: !socket || isReconnecting || showOfflineWarning ? "#6b7280" : 
                         connectionLost ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" :
                         "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
             color: "#fff", 
             border: "none", 
             fontWeight: "bold",
             fontSize: "16px",
-            cursor: (!socket || isReconnecting) ? "not-allowed" : "pointer",
+            cursor: (!socket || isReconnecting || showOfflineWarning) ? "not-allowed" : "pointer",
             transition: "all 0.3s ease",
-            boxShadow: (!socket || isReconnecting) ? "none" : "0 4px 15px rgba(37, 99, 235, 0.4)"
+            boxShadow: (!socket || isReconnecting || showOfflineWarning) ? "none" : "0 4px 15px rgba(37, 99, 235, 0.4)"
           }}
-          onMouseOver={(e) => (socket && !isReconnecting) && (e.target.style.transform = "translateY(-2px)")}
-          onMouseOut={(e) => (socket && !isReconnecting) && (e.target.style.transform = "translateY(0)")}
+          onMouseOver={(e) => (socket && !isReconnecting && !showOfflineWarning) && (e.target.style.transform = "translateY(-2px)")}
+          onMouseOut={(e) => (socket && !isReconnecting && !showOfflineWarning) && (e.target.style.transform = "translateY(0)")}
         >
-          {isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
+          {showOfflineWarning ? "Offline" :
+           isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
            connectionLost ? "Find Next Match" : 
            "Next"}
         </button>
