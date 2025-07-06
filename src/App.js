@@ -33,41 +33,48 @@ function App() {
       pcRef.current.close();
     }
 
-    // Fetch fresh Cloudflare TURN credentials
-    let config;
-    try {
-      console.log('🔄 Fetching Cloudflare TURN credentials...');
-      const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
-      const data = await response.json();
-      
-      config = {
-        iceServers: data.iceServers,
-        iceCandidatePoolSize: 10,
-      };
-      
-      console.log('✅ Cloudflare credentials loaded');
-    } catch (error) {
-      console.error('❌ Failed to get TURN credentials:', error);
-      
-      // Fallback config
-      config = {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-          {
-            urls: "turn:a.relay.metered.ca:80",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          },
-          {
-            urls: "turn:a.relay.metered.ca:443",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          }
-        ],
-        iceCandidatePoolSize: 10,
-      };
-    }
+ // Fetch fresh Cloudflare TURN credentials
+let config;
+try {
+ console.log('🔄 Fetching Cloudflare TURN credentials...');
+ const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
+ const data = await response.json();
+ 
+ console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
+ 
+ 
+ // Fetch fresh Cloudflare TURN credentials
+ config = {
+   iceServers: [
+     { urls: "stun:stun.l.google.com:19302" },
+     // Break down Cloudflare response properly
+     ...data.iceServers[0].urls.map(url => ({
+       urls: url,
+       username: data.iceServers[0].username,
+       credential: data.iceServers[0].credential
+     }))
+   ],
+   iceCandidatePoolSize: 10,
+ };
+ 
+ console.log('✅ Cloudflare credentials loaded');
+} catch (error) {
+ console.error('❌ Failed to get TURN credentials:', error);
+ 
+ // Fallback config
+ config = {
+   iceServers: [
+     { urls: "stun:stun.l.google.com:19302" },
+     { urls: "stun:stun1.l.google.com:19302" },
+     {
+       urls: "turn:a.relay.metered.ca:80",
+       username: "openrelayproject",
+       credential: "openrelayproject"
+     }
+   ],
+   iceCandidatePoolSize: 10,
+ };
+}
 
     const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
@@ -276,20 +283,28 @@ function App() {
     }
   }, []);
 
-  // Handle incoming ICE candidate
-  const handleIceCandidate = useCallback(async (data) => {
-    try {
-      if (pcRef.current && data.candidate) {
-        console.log("📥 Received ICE candidate:", data.candidate.type);
+  // Handle incoming ICE candidate with buffering
+const handleIceCandidate = useCallback(async (data) => {
+  try {
+    if (pcRef.current && data.candidate) {
+      console.log("📥 Received ICE candidate:", data.candidate.type);
+      
+      // Check if remote description is set
+      if (pcRef.current.remoteDescription) {
         await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
         console.log("✅ ICE candidate added");
-      }else {
-      console.log("⏭️ Skipping ICE candidate - no remote description yet");
+      } else {
+        console.log("⏳ Buffering ICE candidate - no remote description yet");
+        // You could store candidates in a buffer array here if needed
+        // For now, just skip - WebRTC will handle retransmission
+      }
+    } else {
+      console.log("⏭️ Skipping ICE candidate - no peer connection or candidate");
     }
-    } catch (error) {
-      console.error("❌ Error adding ICE candidate:", error);
-    }
-  }, []);
+  } catch (error) {
+    console.error("❌ Error adding ICE candidate:", error);
+  }
+}, []);
 
   // Handle matched event with manual negotiation
   const handleMatched = useCallback(async (data) => {
