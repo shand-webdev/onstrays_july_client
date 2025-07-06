@@ -27,36 +27,49 @@ function App() {
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
-  // WebRTC configuration
-  const pcConfig = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun4.l.google.com:19302" },
-    
-      {
-      urls: "turn:relay.metered.ca:80",
-      username: "openrelayproject", 
-      credential: "openrelayproject"
-    },
-    {
-      urls: "turn:turn.bistri.com:80",
-      username: "homeo",
-      credential: "homeo"
-    }
-  ],
-  iceCandidatePoolSize: 10,
-};
-
-  // Create peer connection
-  const createPeerConnection = useCallback(() => {
+  // Create peer connection with dynamic Cloudflare TURN credentials
+  const createPeerConnection = useCallback(async () => {
     if (pcRef.current) {
       pcRef.current.close();
     }
 
-    const pc = new RTCPeerConnection(pcConfig);
+    // Fetch fresh Cloudflare TURN credentials
+    let config;
+    try {
+      console.log('🔄 Fetching Cloudflare TURN credentials...');
+      const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
+      const data = await response.json();
+      
+      config = {
+        iceServers: data.iceServers,
+        iceCandidatePoolSize: 10,
+      };
+      
+      console.log('✅ Cloudflare credentials loaded');
+    } catch (error) {
+      console.error('❌ Failed to get TURN credentials:', error);
+      
+      // Fallback config
+      config = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          {
+            urls: "turn:a.relay.metered.ca:80",
+            username: "openrelayproject",
+            credential: "openrelayproject"
+          },
+          {
+            urls: "turn:a.relay.metered.ca:443",
+            username: "openrelayproject",
+            credential: "openrelayproject"
+          }
+        ],
+        iceCandidatePoolSize: 10,
+      };
+    }
+
+    const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
 
     // Add local stream tracks
@@ -70,7 +83,7 @@ function App() {
     // Handle incoming remote stream
    pc.ontrack = (event) => {
   console.log("📺 Received remote track:", event.track.kind);
-  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current); // ADD THIS LINE
+  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current);
   if (remoteVideoRef.current && event.streams[0]) {
     remoteVideoRef.current.srcObject = event.streams[0];
     setStatus("Connected!");
@@ -80,7 +93,7 @@ function App() {
       clearTimeout(connectionTimerRef.current);
       connectionTimerRef.current = null;
     } else {
-      console.log("❌ No connectionTimer to clear!"); // ADD THIS LINE
+      console.log("❌ No connectionTimer to clear!");
     }
   }
 };
@@ -88,9 +101,20 @@ function App() {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
   if (event.candidate && socketRef.current) {
-    console.log("🧊 Connection type:", event.candidate.type); // ← NEW DEBUG LINE
-    console.log("🧊 ICE candidate full:", event.candidate.candidate); // ← NEW DEBUG LINE
-    console.log("🧊 Sending ICE candidate:", event.candidate.type);
+   
+     const candidate = event.candidate;
+    
+    // Enhanced logging info (like the successful clone)
+    console.log(`🧊 Local Candidate Type: ${candidate.type}`);
+    console.log(`🧊 Candidate Address: ${candidate.address || 'unknown'}`);
+    console.log(`🧊 Candidate Protocol: ${candidate.protocol}`);
+    console.log(`🧊 Full candidate: ${candidate.candidate}`);
+    
+    // Check for Cloudflare relay (TURN) candidate
+    if (candidate.type === 'relay') {
+      console.log(`✅ CLOUDFLARE TURN WORKING! Address: ${candidate.address}`);
+    }
+
     socketRef.current.emit("ice-candidate", {
       candidate: event.candidate.toJSON(),
       partnerId: partnerId,
@@ -165,7 +189,6 @@ function App() {
 
     return pc;
   }, [partnerId]);
-
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
@@ -269,7 +292,7 @@ function App() {
   }, []);
 
   // Handle matched event with manual negotiation
-  const handleMatched = useCallback((data) => {
+  const handleMatched = useCallback(async (data) => {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
 
 // CLEAR ANY EXISTING TIMER FIRST
@@ -307,8 +330,8 @@ function App() {
    console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
  
 
-    // Create new peer connection for this match
-    const pc = createPeerConnection();
+    // Create new peer connection for this match with fresh credentials
+    const pc = await createPeerConnection();
     
     // Manual negotiation for impolite peer
     if (data.role === "impolite") {
