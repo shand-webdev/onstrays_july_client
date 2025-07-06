@@ -43,38 +43,57 @@ try {
  console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
  
  
- // Fetch fresh Cloudflare TURN credentials
- config = {
-   iceServers: [
-     { urls: "stun:stun.l.google.com:19302" },
-     // Break down Cloudflare response properly
-     ...data.iceServers[0].urls.map(url => ({
-       urls: url,
-       username: data.iceServers[0].username,
-       credential: data.iceServers[0].credential
-     }))
-   ],
-   iceCandidatePoolSize: 10,
- };
- 
- console.log('✅ Cloudflare credentials loaded');
+// Fetch fresh Cloudflare TURN credentials
+try {
+  console.log('🔄 Fetching Cloudflare TURN credentials...');
+  const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
+  const data = await response.json();
+  console.log('🔍 Cloudflare API Response:', data);
+
+  let turnServers = [];
+  // Iterate through each server Cloudflare returned
+  data.iceServers.forEach(server => {
+    // If urls is an array, expand them; otherwise, use as-is
+    if (Array.isArray(server.urls)) {
+      server.urls.forEach(url => {
+        turnServers.push({
+          urls: url,
+          username: server.username,
+          credential: server.credential
+        });
+      });
+    } else {
+      turnServers.push(server);
+    }
+  });
+
+  config = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      ...turnServers
+    ],
+    iceCandidatePoolSize: 10,
+  };
+
+  console.log('✅ Cloudflare credentials loaded');
 } catch (error) {
- console.error('❌ Failed to get TURN credentials:', error);
- 
- // Fallback config
- config = {
-   iceServers: [
-     { urls: "stun:stun.l.google.com:19302" },
-     { urls: "stun:stun1.l.google.com:19302" },
-     {
-       urls: "turn:a.relay.metered.ca:80",
-       username: "openrelayproject",
-       credential: "openrelayproject"
-     }
-   ],
-   iceCandidatePoolSize: 10,
- };
+  console.error('❌ Failed to get TURN credentials:', error);
+
+  // Fallback config
+  config = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      {
+        urls: "turn:a.relay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject"
+      }
+    ],
+    iceCandidatePoolSize: 10,
+  };
 }
+
 
     const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
