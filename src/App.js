@@ -20,6 +20,13 @@ function App() {
   const [partnerId, setPartnerId] = useState(null);
   const connectionTimerRef = useRef(null);
 
+  //User reconnection state logs
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectionTimer, setReconnectionTimer] = useState(0);
+  const [connectionLost, setConnectionLost] = useState(false);
+  const reconnectionTimerRef = useRef(null);
+  const reconnectionCountdownRef = useRef(null);
+
   const makingOfferRef = useRef(false);
   const ignoreOfferRef = useRef(false);
   const isSettingRemoteAnswerPendingRef = useRef(false);
@@ -27,56 +34,90 @@ function App() {
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
+  // Reconnection countdown function
+  const startReconnectionCountdown = useCallback(() => {
+    let timeLeft = 10; // 10 seconds
+    setReconnectionTimer(timeLeft);
+    setIsReconnecting(true);
+    
+    reconnectionCountdownRef.current = setInterval(() => {
+      timeLeft--;
+      setReconnectionTimer(timeLeft);
+      
+      if (timeLeft <= 0) {
+        clearInterval(reconnectionCountdownRef.current);
+        setIsReconnecting(false);
+        setConnectionLost(true);
+        setStatus("❌ Connection lost - unable to reconnect");
+      }
+    }, 1000);
+  }, []);
+
+  // Clear reconnection timers
+  const clearReconnectionTimers = useCallback(() => {
+    if (reconnectionTimerRef.current) {
+      clearTimeout(reconnectionTimerRef.current);
+      reconnectionTimerRef.current = null;
+    }
+    if (reconnectionCountdownRef.current) {
+      clearInterval(reconnectionCountdownRef.current);
+      reconnectionCountdownRef.current = null;
+    }
+    setIsReconnecting(false);
+    setReconnectionTimer(0);
+    setConnectionLost(false);
+  }, []);
+
   // Create peer connection with dynamic Cloudflare TURN credentials
   const createPeerConnection = useCallback(async () => {
     if (pcRef.current) {
       pcRef.current.close();
     }
 
-let config;
-try {
-  console.log('🔄 Fetching Cloudflare TURN credentials...');
-  const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
-  const data = await response.json();
-  console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
+    let config;
+    try {
+      console.log('🔄 Fetching Cloudflare TURN credentials...');
+      const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
+      const data = await response.json();
+      console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
 
-  // Build the iceServers array, flatten if needed
-  const servers = [];
-  data.iceServers.forEach(server => {
-    // If 'urls' is a string, make it an array
-    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-    urls.forEach(url => {
-      servers.push({
-        urls: url,
-        username: server.username,
-        credential: server.credential
+      // Build the iceServers array, flatten if needed
+      const servers = [];
+      data.iceServers.forEach(server => {
+        // If 'urls' is a string, make it an array
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        urls.forEach(url => {
+          servers.push({
+            urls: url,
+            username: server.username,
+            credential: server.credential
+          });
+        });
       });
-    });
-  });
 
-  config = {
-    iceServers: servers,
-    iceCandidatePoolSize: 10,
-  };
+      config = {
+        iceServers: servers,
+        iceCandidatePoolSize: 10,
+      };
 
-  console.log('✅ Cloudflare credentials loaded');
-} catch (error) {
-  console.error('❌ Failed to get TURN credentials:', error);
+      console.log('✅ Cloudflare credentials loaded');
+    } catch (error) {
+      console.error('❌ Failed to get TURN credentials:', error);
 
-  // Fallback config
-  config = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      {
-        urls: "turn:a.relay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject"
-      }
-    ],
-    iceCandidatePoolSize: 10,
-  };
-}
+      // Fallback config
+      config = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          {
+            urls: "turn:a.relay.metered.ca:80",
+            username: "openrelayproject",
+            credential: "openrelayproject"
+          }
+        ],
+        iceCandidatePoolSize: 10,
+      };
+    }
 
     const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
@@ -90,48 +131,47 @@ try {
     }
 
     // Handle incoming remote stream
-   pc.ontrack = (event) => {
-  console.log("📺 Received remote track:", event.track.kind);
-  console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current);
-  if (remoteVideoRef.current && event.streams[0]) {
-    remoteVideoRef.current.srcObject = event.streams[0];
-    setStatus("Connected!");
-    
-    if (connectionTimerRef.current) {
-      console.log("🕐 Connection successful - clearing timeout");
-      clearTimeout(connectionTimerRef.current);
-      connectionTimerRef.current = null;
-    } else {
-      console.log("❌ No connectionTimer to clear!");
-    }
-  }
-};
+    pc.ontrack = (event) => {
+      console.log("📺 Received remote track:", event.track.kind);
+      console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current);
+      if (remoteVideoRef.current && event.streams[0]) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+        setStatus("Connected!");
+        
+        if (connectionTimerRef.current) {
+          console.log("🕐 Connection successful - clearing timeout");
+          clearTimeout(connectionTimerRef.current);
+          connectionTimerRef.current = null;
+        } else {
+          console.log("❌ No connectionTimer to clear!");
+        }
+      }
+    };
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
-  if (event.candidate && socketRef.current) {
-   
-     const candidate = event.candidate;
-    
-    // Enhanced logging info (like the successful clone)
-    console.log(`🧊 Local Candidate Type: ${candidate.type}`);
-    console.log(`🧊 Candidate Address: ${candidate.address || 'unknown'}`);
-    console.log(`🧊 Candidate Protocol: ${candidate.protocol}`);
-    console.log(`🧊 Full candidate: ${candidate.candidate}`);
-    
-    // Check for Cloudflare relay (TURN) candidate
-    if (candidate.type === 'relay') {
-      console.log(`✅ CLOUDFLARE TURN WORKING! Address: ${candidate.address}`);
-    }
+      if (event.candidate && socketRef.current) {
+        const candidate = event.candidate;
+        
+        // Enhanced logging info (like the successful clone)
+        console.log(`🧊 Local Candidate Type: ${candidate.type}`);
+        console.log(`🧊 Candidate Address: ${candidate.address || 'unknown'}`);
+        console.log(`🧊 Candidate Protocol: ${candidate.protocol}`);
+        console.log(`🧊 Full candidate: ${candidate.candidate}`);
+        
+        // Check for Cloudflare relay (TURN) candidate
+        if (candidate.type === 'relay') {
+          console.log(`✅ CLOUDFLARE TURN WORKING! Address: ${candidate.address}`);
+        }
 
-    socketRef.current.emit("ice-candidate", {
-      candidate: event.candidate.toJSON(),
-      partnerId: partnerId,
-    });
-  } else if (!event.candidate) {
-    console.log("🧊 ICE gathering complete");
-  }
-};
+        socketRef.current.emit("ice-candidate", {
+          candidate: event.candidate.toJSON(),
+          partnerId: partnerId,
+        });
+      } else if (!event.candidate) {
+        console.log("🧊 ICE gathering complete");
+      }
+    };
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
@@ -154,53 +194,68 @@ try {
       }
     };
 
-    // Enhanced ICE connection state handling
+    // Enhanced ICE connection state handling with manual reconnection
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state:", pc.iceConnectionState);
       
       switch (pc.iceConnectionState) {
-        case "failed":
-          console.log("ICE connection failed, attempting restart...");
-          if (!pc._iceRestartAttempted) {
-            pc._iceRestartAttempted = true;
-            setTimeout(() => {
-              if (pc.iceConnectionState === "failed") {
-                console.log("Executing ICE restart...");
-                pc.restartIce();
-              }
-            }, 2000);
-          } else {
-            console.log("ICE restart already attempted, giving up");
-            setStatus("Connection failed - please try next");
-          }
-          break;
-        case "disconnected":
-          console.log("ICE connection disconnected, waiting for reconnection...");
-          setTimeout(() => {
-            if (pc.iceConnectionState === "disconnected") {
-              setStatus("Connection unstable - may need to skip");
-            }
-          }, 5000);
-          break;
         case "connected":
+        case "completed":
           console.log("ICE connection established");
+          // Clear any reconnection attempts
+          clearReconnectionTimers();
           pc._iceRestartAttempted = false;
           setStatus("Connected!");
           break;
-        case "checking":
-          console.log("ICE connection checking...");
-          setStatus("Connecting...");
+          
+        case "disconnected":
+          console.log("ICE connection disconnected, attempting reconnection...");
+          if (!isReconnecting && !connectionLost) {
+            setStatus(`📵 Connection lost, trying to reconnect... (${reconnectionTimer}s)`);
+            startReconnectionCountdown();
+            
+            // Try ICE restart
+            if (!pc._iceRestartAttempted) {
+              pc._iceRestartAttempted = true;
+              setTimeout(() => {
+                if (pc.iceConnectionState === "disconnected") {
+                  console.log("Executing ICE restart...");
+                  pc.restartIce();
+                }
+              }, 2000);
+            }
+          }
           break;
+          
+        case "failed":
+          console.log("ICE connection failed completely");
+          clearReconnectionTimers();
+          setConnectionLost(true);
+          setStatus("❌ Connection failed - unable to reconnect");
+          break;
+          
+        case "checking":
+          if (isReconnecting) {
+            setStatus(`🔄 Reconnecting... (${reconnectionTimer}s)`);
+          } else {
+            console.log("ICE connection checking...");
+            setStatus("Connecting...");
+          }
+          break;
+          
         default:
           break;
       }
     };
 
     return pc;
-  }, [partnerId]);
+  }, [partnerId, isReconnecting, connectionLost, reconnectionTimer, startReconnectionCountdown, clearReconnectionTimers]);
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
+    // Clear reconnection timers
+    clearReconnectionTimers();
+    
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
@@ -212,9 +267,9 @@ try {
     makingOfferRef.current = false;
     ignoreOfferRef.current = false;
     isSettingRemoteAnswerPendingRef.current = false;
-  }, []);
+  }, [clearReconnectionTimers]);
 
-   // Handle next button click
+  // Handle next button click
   const handleNext = useCallback(() => {
     if (socket) {
       console.log("Requesting next match");
@@ -249,18 +304,18 @@ try {
       const answer = await pcRef.current.createAnswer();
       await pcRef.current.setLocalDescription(answer);
 
-       // FIX: Use partnerId from the offer data instead of state
-    const targetPartnerId = data.partnerId || partnerId;
-    console.log("🔍 About to send answer to:", targetPartnerId);
-      
+      // FIX: Use partnerId from the offer data instead of state
+      const targetPartnerId = data.partnerId || partnerId;
+      console.log("🔍 About to send answer to:", targetPartnerId);
+        
       if (socketRef.current && targetPartnerId) {
-      console.log("📤 Sending answer to partner");
-      socketRef.current.emit("answer", {
-        answer: pcRef.current.localDescription,
-        partnerId: targetPartnerId,
+        console.log("📤 Sending answer to partner");
+        socketRef.current.emit("answer", {
+          answer: pcRef.current.localDescription,
+          partnerId: targetPartnerId,
         });
-      }else {
-      console.error("❌ Cannot send answer - missing socket or partnerId");
+      } else {
+        console.error("❌ Cannot send answer - missing socket or partnerId");
       }
     } catch (error) {
       console.error("❌ Error handling offer:", error);
@@ -286,66 +341,65 @@ try {
   }, []);
 
   // Handle incoming ICE candidate with buffering
-const handleIceCandidate = useCallback(async (data) => {
-  try {
-    if (pcRef.current && data.candidate) {
-      console.log("📥 Received ICE candidate:", data.candidate.type);
-      
-      // Check if remote description is set
-      if (pcRef.current.remoteDescription) {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-        console.log("✅ ICE candidate added");
+  const handleIceCandidate = useCallback(async (data) => {
+    try {
+      if (pcRef.current && data.candidate) {
+        console.log("📥 Received ICE candidate:", data.candidate.type);
+        
+        // Check if remote description is set
+        if (pcRef.current.remoteDescription) {
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+          console.log("✅ ICE candidate added");
+        } else {
+          console.log("⏳ Buffering ICE candidate - no remote description yet");
+          // You could store candidates in a buffer array here if needed
+          // For now, just skip - WebRTC will handle retransmission
+        }
       } else {
-        console.log("⏳ Buffering ICE candidate - no remote description yet");
-        // You could store candidates in a buffer array here if needed
-        // For now, just skip - WebRTC will handle retransmission
+        console.log("⏭️ Skipping ICE candidate - no peer connection or candidate");
       }
-    } else {
-      console.log("⏭️ Skipping ICE candidate - no peer connection or candidate");
+    } catch (error) {
+      console.error("❌ Error adding ICE candidate:", error);
     }
-  } catch (error) {
-    console.error("❌ Error adding ICE candidate:", error);
-  }
-}, []);
+  }, []);
 
   // Handle matched event with manual negotiation
   const handleMatched = useCallback(async (data) => {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
 
-// CLEAR ANY EXISTING TIMER FIRST
-  if (connectionTimerRef.current) {
-  clearTimeout(connectionTimerRef.current);
-  connectionTimerRef.current = null;
-}
+    // CLEAR ANY EXISTING TIMER FIRST
+    if (connectionTimerRef.current) {
+      clearTimeout(connectionTimerRef.current);
+      connectionTimerRef.current = null;
+    }
 
     setPartnerId(data.partnerId);
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
 
-     // ADD TIMEOUT HERE (no functions, just direct logic)
-  const timer = setTimeout(() => {
-    console.log("⏰ Connection timeout - auto skipping");
-    setStatus("Connection timeout - finding new match...");
+    // ADD TIMEOUT HERE (no functions, just direct logic)
+    const timer = setTimeout(() => {
+      console.log("⏰ Connection timeout - auto skipping");
+      setStatus("Connection timeout - finding new match...");
+      
+      // Directly call socket.emit instead of handleNext
+      if (socketRef.current) {
+        socketRef.current.emit("next");
+        setStatus("Finding new match...");
+        // Clean up manually
+        if (pcRef.current) {
+          pcRef.current.close();
+          pcRef.current = null;
+        }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
+        setPartnerId(null);
+      }
+    }, 15000); // 15 seconds
     
-    // Directly call socket.emit instead of handleNext
-    if (socketRef.current) {
-      socketRef.current.emit("next");
-      setStatus("Finding new match...");
-      // Clean up manually
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-      }
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
-      setPartnerId(null);
-    }
-  }, 15000); // 15 seconds
-  
-  connectionTimerRef.current = timer;
-   console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
- 
+    connectionTimerRef.current = timer;
+    console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
 
     // Create new peer connection for this match with fresh credentials
     const pc = await createPeerConnection();
@@ -381,12 +435,11 @@ const handleIceCandidate = useCallback(async (data) => {
     cleanupPeerConnection();
     setStatus("Waiting for match...");
 
-if (socketRef.current) {
-    console.log("🔄 Rejoining queue after partner disconnect");
-    // The backend should automatically add disconnected users back to queue
-    // But we can ensure it by emitting a rejoin event
-  }
-
+    if (socketRef.current) {
+      console.log("🔄 Rejoining queue after partner disconnect");
+      // The backend should automatically add disconnected users back to queue
+      // But we can ensure it by emitting a rejoin event
+    }
   }, [cleanupPeerConnection]);
 
   // Handle partner next
@@ -428,10 +481,10 @@ if (socketRef.current) {
         s.on("matched", handleMatched);
         s.on("partner_disconnected", handlePartnerDisconnected);
         s.on("partner_next", handlePartnerNext);
-s.on("offer", (data) => {
-  console.log("🎯 OFFER EVENT RECEIVED:", data);
-  handleOffer(data);
-});
+        s.on("offer", (data) => {
+          console.log("🎯 OFFER EVENT RECEIVED:", data);
+          handleOffer(data);
+        });
         s.on("answer", handleAnswer);
         s.on("ice-candidate", handleIceCandidate);
 
@@ -444,7 +497,6 @@ s.on("offer", (data) => {
     initConnection();
   }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
- 
   // LANDING PAGE
   if (!agreed) {
     return (
@@ -585,34 +637,63 @@ s.on("offer", (data) => {
         marginBottom: "20px", 
         fontSize: "1.2rem",
         textAlign: "center",
-        background: "rgba(255, 255, 255, 0.1)",
+        background: connectionLost ? "rgba(239, 68, 68, 0.2)" : 
+                    isReconnecting ? "rgba(251, 191, 36, 0.2)" : 
+                    "rgba(255, 255, 255, 0.1)",
         padding: "10px 20px",
         borderRadius: "10px",
-        backdropFilter: "blur(5px)"
+        backdropFilter: "blur(5px)",
+        border: connectionLost ? "2px solid #ef4444" : 
+                isReconnecting ? "2px solid #f59e0b" : 
+                "1px solid transparent"
       }}>
-        {status}
+        {connectionLost ? (
+          <div>
+            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
+              ❌ Connection Lost
+            </div>
+            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
+              Unable to reconnect - click Next to find new match
+            </div>
+          </div>
+        ) : isReconnecting ? (
+          <div>
+            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
+              🔄 Trying to Reconnect...
+            </div>
+            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
+              {reconnectionTimer} seconds remaining
+            </div>
+          </div>
+        ) : (
+          status
+        )}
       </div>
       
       <div style={{ display: "flex", gap: "15px" }}>
         <button 
           onClick={handleNext} 
-          disabled={!socket}
+          disabled={!socket || isReconnecting}
           style={{ 
             padding: "14px 40px", 
             borderRadius: "10px", 
-            background: socket ? "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" : "#6b7280",
+            background: !socket || isReconnecting ? "#6b7280" : 
+                        connectionLost ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" :
+                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
             color: "#fff", 
             border: "none", 
             fontWeight: "bold",
             fontSize: "16px",
-            cursor: socket ? "pointer" : "not-allowed",
+            cursor: (!socket || isReconnecting) ? "not-allowed" : "pointer",
             transition: "all 0.3s ease",
-            boxShadow: socket ? "0 4px 15px rgba(37, 99, 235, 0.4)" : "none"
+            boxShadow: (!socket || isReconnecting) ? "none" : "0 4px 15px rgba(37, 99, 235, 0.4)"
           }}
-          onMouseOver={(e) => socket && (e.target.style.transform = "translateY(-2px)")}
-          onMouseOut={(e) => socket && (e.target.style.transform = "translateY(0)")}
+          onMouseOver={(e) => (socket && !isReconnecting) && (e.target.style.transform = "translateY(-2px)")}
+          onMouseOut={(e) => (socket && !isReconnecting) && (e.target.style.transform = "translateY(0)")}
         >
-          Next
+          {isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
+           connectionLost ? "Find Next Match" : 
+           "Next"}
         </button>
       </div>
       
