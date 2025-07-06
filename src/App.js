@@ -33,45 +33,29 @@ function App() {
       pcRef.current.close();
     }
 
- // Fetch fresh Cloudflare TURN credentials
 let config;
-try {
- console.log('🔄 Fetching Cloudflare TURN credentials...');
- const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
- const data = await response.json();
- 
- console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
- 
- 
-// Fetch fresh Cloudflare TURN credentials
 try {
   console.log('🔄 Fetching Cloudflare TURN credentials...');
   const response = await fetch(`${SIGNAL_SERVER_URL}/api/turn-credentials`);
   const data = await response.json();
-  console.log('🔍 Cloudflare API Response:', data);
+  console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
 
-  let turnServers = [];
-  // Iterate through each server Cloudflare returned
+  // Build the iceServers array, flatten if needed
+  const servers = [];
   data.iceServers.forEach(server => {
-    // If urls is an array, expand them; otherwise, use as-is
-    if (Array.isArray(server.urls)) {
-      server.urls.forEach(url => {
-        turnServers.push({
-          urls: url,
-          username: server.username,
-          credential: server.credential
-        });
+    // If 'urls' is a string, make it an array
+    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+    urls.forEach(url => {
+      servers.push({
+        urls: url,
+        username: server.username,
+        credential: server.credential
       });
-    } else {
-      turnServers.push(server);
-    }
+    });
   });
 
   config = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      ...turnServers
-    ],
+    iceServers: servers,
     iceCandidatePoolSize: 10,
   };
 
@@ -93,7 +77,6 @@ try {
     iceCandidatePoolSize: 10,
   };
 }
-
 
     const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
