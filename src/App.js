@@ -1,14 +1,22 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
 import LandingPage from "./pages/myLandingPage.js";
+import UserAccount from "./components/UserAccount.js";
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth, googleProvider } from './firebase-config';
 
-const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com"; // backend url
+const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
 
 function App() {
   // AGREEMENT STATE
   const [agreed, setAgreed] = useState(false);
 
- 
+  // GOOGLE AUTHENTICATION STATE
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // NAME MANAGEMENT STATE
+  const [displayName, setDisplayName] = useState("Anonymous");
 
   // Video chat state & refs
   const localVideoRef = useRef(null);
@@ -42,6 +50,52 @@ function App() {
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
+  // GOOGLE AUTHENTICATION FUNCTIONS
+  const signInWithGoogle = async () => {
+    try {
+      setAuthLoading(true);
+      const result = await signInWithPopup(auth, googleProvider);
+      setUser(result.user);
+      setDisplayName("Anonymous"); // Set default name
+      console.log("✅ User signed in:", result.user.displayName);
+      console.log("🎭 Display name set to: Anonymous");
+    } catch (error) {
+      console.error("❌ Google sign-in error:", error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        alert("Sign-in cancelled. Please try again.");
+      } else {
+        alert("Sign-in failed. Please try again.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // AUTH STATE LISTENER
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("🔄 Auth state changed:", currentUser ? currentUser.displayName : "No user");
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (!currentUser) {
+        setAgreed(false); // Reset to landing page on sign out
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // AUTO-TRIGGER GOOGLE SIGN-IN
+  useEffect(() => {
+    if (agreed && !user && !authLoading) {
+      const timer = setTimeout(() => {
+        signInWithGoogle();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [agreed, user, authLoading]);
+
   // Internet connection checker
   const checkInternetConnection = async () => {
     try {
@@ -58,7 +112,7 @@ function App() {
 
   // Reconnection countdown function
   const startReconnectionCountdown = useCallback(() => {
-    let timeLeft = 10; // 10 seconds
+    let timeLeft = 10;
     setReconnectionTimer(timeLeft);
     setIsReconnecting(true);
     
@@ -97,7 +151,6 @@ function App() {
     
     if (!online && !showOfflineWarning) {
       setShowOfflineWarning(true);
-      // Pause any ongoing reconnection attempts
       if (isReconnecting) {
         clearReconnectionTimers();
         setStatus("📵 You're offline - check your internet");
@@ -108,7 +161,6 @@ function App() {
       }
     } else if (online && showOfflineWarning) {
       setShowOfflineWarning(false);
-      // Resume based on current state
       if (partnerId && connectionLost) {
         setStatus("🔄 Internet restored - trying to reconnect...");
         startReconnectionCountdown();
@@ -133,10 +185,8 @@ function App() {
       const data = await response.json();
       console.log('🔍 Cloudflare API Response:', JSON.stringify(data, null, 2));
 
-      // Build the iceServers array, flatten if needed
       const servers = [];
       data.iceServers.forEach(server => {
-        // If 'urls' is a string, make it an array
         const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
         urls.forEach(url => {
           servers.push({
@@ -156,7 +206,6 @@ function App() {
     } catch (error) {
       console.error('❌ Failed to get TURN credentials:', error);
 
-      // Fallback config
       config = {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -174,7 +223,6 @@ function App() {
     const pc = new RTCPeerConnection(config);
     pcRef.current = pc;
 
-    // Add local stream tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         console.log("➕ Adding track:", track.kind);
@@ -182,10 +230,8 @@ function App() {
       });
     }
 
-    // Handle incoming remote stream
     pc.ontrack = (event) => {
       console.log("📺 Received remote track:", event.track.kind);
-      console.log("🔍 DEBUG: connectionTimer exists?", !!connectionTimerRef.current);
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
         setStatus("Connected!");
@@ -194,24 +240,18 @@ function App() {
           console.log("🕐 Connection successful - clearing timeout");
           clearTimeout(connectionTimerRef.current);
           connectionTimerRef.current = null;
-        } else {
-          console.log("❌ No connectionTimer to clear!");
         }
       }
     };
 
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
         const candidate = event.candidate;
         
-        // Enhanced logging info (like the successful clone)
         console.log(`🧊 Local Candidate Type: ${candidate.type}`);
         console.log(`🧊 Candidate Address: ${candidate.address || 'unknown'}`);
         console.log(`🧊 Candidate Protocol: ${candidate.protocol}`);
-        console.log(`🧊 Full candidate: ${candidate.candidate}`);
         
-        // Check for Cloudflare relay (TURN) candidate
         if (candidate.type === 'relay') {
           console.log(`✅ CLOUDFLARE TURN WORKING! Address: ${candidate.address}`);
         }
@@ -225,7 +265,6 @@ function App() {
       }
     };
 
-    // Handle connection state changes
     pc.onconnectionstatechange = () => {
       console.log("🔗 Connection state:", pc.connectionState);
       switch (pc.connectionState) {
@@ -246,7 +285,6 @@ function App() {
       }
     };
 
-    // Enhanced ICE connection state handling with manual reconnection
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state:", pc.iceConnectionState);
       
@@ -254,7 +292,6 @@ function App() {
         case "connected":
         case "completed":
           console.log("ICE connection established");
-          // Clear any reconnection attempts
           clearReconnectionTimers();
           pc._iceRestartAttempted = false;
           setStatus("Connected!");
@@ -266,7 +303,6 @@ function App() {
             setStatus(`📵 Connection lost, trying to reconnect... (${reconnectionTimer}s)`);
             startReconnectionCountdown();
             
-            // Try ICE restart
             if (!pc._iceRestartAttempted) {
               pc._iceRestartAttempted = true;
               setTimeout(() => {
@@ -305,7 +341,6 @@ function App() {
 
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
-    // Clear reconnection timers
     clearReconnectionTimers();
     
     if (pcRef.current) {
@@ -356,7 +391,6 @@ function App() {
       const answer = await pcRef.current.createAnswer();
       await pcRef.current.setLocalDescription(answer);
 
-      // FIX: Use partnerId from the offer data instead of state
       const targetPartnerId = data.partnerId || partnerId;
       console.log("🔍 About to send answer to:", targetPartnerId);
         
@@ -392,20 +426,17 @@ function App() {
     }
   }, []);
 
-  // Handle incoming ICE candidate with buffering
+  // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (data) => {
     try {
       if (pcRef.current && data.candidate) {
         console.log("📥 Received ICE candidate:", data.candidate.type);
         
-        // Check if remote description is set
         if (pcRef.current.remoteDescription) {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
           console.log("✅ ICE candidate added");
         } else {
           console.log("⏳ Buffering ICE candidate - no remote description yet");
-          // You could store candidates in a buffer array here if needed
-          // For now, just skip - WebRTC will handle retransmission
         }
       } else {
         console.log("⏭️ Skipping ICE candidate - no peer connection or candidate");
@@ -415,11 +446,10 @@ function App() {
     }
   }, []);
 
-  // Handle matched event with manual negotiation
+  // Handle matched event
   const handleMatched = useCallback(async (data) => {
     console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
 
-    // CLEAR ANY EXISTING TIMER FIRST
     if (connectionTimerRef.current) {
       clearTimeout(connectionTimerRef.current);
       connectionTimerRef.current = null;
@@ -429,16 +459,13 @@ function App() {
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
 
-    // ADD TIMEOUT HERE (no functions, just direct logic)
     const timer = setTimeout(() => {
       console.log("⏰ Connection timeout - auto skipping");
       setStatus("Connection timeout - finding new match...");
       
-      // Directly call socket.emit instead of handleNext
       if (socketRef.current) {
         socketRef.current.emit("next");
         setStatus("Finding new match...");
-        // Clean up manually
         if (pcRef.current) {
           pcRef.current.close();
           pcRef.current = null;
@@ -448,15 +475,13 @@ function App() {
         }
         setPartnerId(null);
       }
-    }, 15000); // 15 seconds
+    }, 15000);
     
     connectionTimerRef.current = timer;
     console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
 
-    // Create new peer connection for this match with fresh credentials
     const pc = await createPeerConnection();
     
-    // Manual negotiation for impolite peer
     if (data.role === "impolite") {
       console.log("🚀 Starting manual negotiation as impolite");
       setTimeout(async () => {
@@ -489,8 +514,6 @@ function App() {
 
     if (socketRef.current) {
       console.log("🔄 Rejoining queue after partner disconnect");
-      // The backend should automatically add disconnected users back to queue
-      // But we can ensure it by emitting a rejoin event
     }
   }, [cleanupPeerConnection]);
 
@@ -504,7 +527,7 @@ function App() {
 
   // Initialize socket connection and media
   useEffect(() => {
-    if (!agreed || socket) return;
+    if (!agreed || !user || socket) return;
     
     const initConnection = async () => {
       try {
@@ -523,7 +546,7 @@ function App() {
         });
 
         setSocket(s);
-        socketRef.current = s; // Store in ref for immediate access
+        socketRef.current = s;
 
         s.on("connect", () => {
           console.log("✅ Connected:", s.id);
@@ -547,17 +570,14 @@ function App() {
     };
 
     initConnection();
-  }, [agreed, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
+  }, [agreed, user, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
   // Monitor internet connection
   useEffect(() => {
-    // Check immediately
     handleOnlineStatus();
     
-    // Check every 3 seconds
     onlineCheckIntervalRef.current = setInterval(handleOnlineStatus, 3000);
     
-    // Listen to browser online/offline events
     const handleBrowserOnline = () => {
       console.log('📶 Browser detected online');
       handleOnlineStatus();
@@ -586,9 +606,111 @@ function App() {
     };
   }, [handleOnlineStatus, partnerId]);
 
-  //Landing page
-   if (!agreed) {
+  // CONDITIONAL RENDERING
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontSize: "1.5rem"
+      }}>
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "20px"
+        }}>
+          <div style={{
+            width: "50px",
+            height: "50px",
+            border: "3px solid rgba(255,255,255,0.3)",
+            borderTop: "3px solid #fff",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite"
+          }}></div>
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agreed) {
     return <LandingPage setAgreed={setAgreed} />;
+  }
+
+  if (!user) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px"
+      }}>
+        <div style={{
+          textAlign: "center",
+          maxWidth: "500px",
+          background: "rgba(255, 255, 255, 0.1)",
+          padding: "40px",
+          borderRadius: "20px",
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255, 255, 255, 0.2)"
+        }}>
+          <h1 style={{ fontSize: "2.5rem", marginBottom: "20px", fontWeight: "bold" }}>
+            OnStrays
+          </h1>
+          <p style={{ fontSize: "1.1rem", marginBottom: "30px", lineHeight: "1.6" }}>
+            Connecting you anonymously...
+          </p>
+          
+          {!authLoading && (
+            <button
+              onClick={signInWithGoogle}
+              style={{
+                padding: "16px 32px",
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #db4437 0%, #c23321 100%)",
+                color: "#fff",
+                border: "none",
+                fontSize: "16px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                boxShadow: "0 4px 15px rgba(219, 68, 55, 0.4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                margin: "0 auto"
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Continue Anonymously
+            </button>
+          )}
+          
+          <div style={{ 
+            marginTop: "20px", 
+            fontSize: "0.9rem", 
+            opacity: "0.8",
+            lineHeight: "1.4"
+          }}>
+            Quick verification required. Your identity remains anonymous.
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // VIDEO CHAT PAGE
@@ -601,11 +723,32 @@ function App() {
       flexDirection: "column", 
       alignItems: "center", 
       justifyContent: "center",
-      padding: "20px"
+      padding: "20px",
+      position: "relative"
     }}>
+      {/* USER ACCOUNT COMPONENT */}
+      <UserAccount 
+        user={user} 
+        displayName={displayName} 
+        setDisplayName={setDisplayName} 
+      />
+
       <h1 style={{ marginBottom: "20px", fontSize: "2.5rem", fontWeight: "bold" }}>
         OnStrays
       </h1>
+
+      {/* Display current name */}
+      <div style={{ 
+        marginBottom: "15px", 
+        fontSize: "1rem",
+        opacity: "0.8",
+        background: "rgba(255, 255, 255, 0.1)",
+        padding: "8px 16px",
+        borderRadius: "20px",
+        backdropFilter: "blur(10px)"
+      }}>
+        You are: <strong>{displayName}</strong>
+      </div>
       
       <div style={{ 
         display: "flex", 
@@ -633,13 +776,15 @@ function App() {
             position: "absolute",
             bottom: "10px",
             left: "10px",
-            background: "rgba(0, 0, 0, 0.7)",
+            background: "rgba(0, 0, 0, 0.8)",
             color: "#fff",
-            padding: "5px 10px",
-            borderRadius: "5px",
-            fontSize: "12px"
+            padding: "6px 12px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            fontWeight: "600",
+            backdropFilter: "blur(10px)"
           }}>
-            You
+            {displayName}
           </div>
         </div>
         
@@ -661,11 +806,13 @@ function App() {
             position: "absolute",
             bottom: "10px",
             left: "10px",
-            background: "rgba(0, 0, 0, 0.7)",
+            background: "rgba(0, 0, 0, 0.8)",
             color: "#fff",
-            padding: "5px 10px",
-            borderRadius: "5px",
-            fontSize: "12px"
+            padding: "6px 12px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            fontWeight: "600",
+            backdropFilter: "blur(10px)"
           }}>
             Stranger
           </div>
@@ -764,6 +911,14 @@ function App() {
       }}>
         Role: {isPolite ? "Polite" : "Impolite"} | Partner: {partnerId || "None"}
       </div>
+
+      {/* CSS for loading animation */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
