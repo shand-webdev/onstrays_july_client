@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
-import LandingPage from "./pages/myLandingPage";
+import LandingPage from "./pages/myLandingPage.js";
 
 const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com"; // backend url
 
@@ -8,9 +8,7 @@ function App() {
   // AGREEMENT STATE
   const [agreed, setAgreed] = useState(false);
 
-  if (!agreed) {
-    return <LandingPage setAgreed={setAgreed} />;
-  }
+ 
 
   // Video chat state & refs
   const localVideoRef = useRef(null);
@@ -589,6 +587,9 @@ function App() {
   }, [handleOnlineStatus, partnerId]);
 
   //Landing page
+   if (!agreed) {
+    return <LandingPage setAgreed={setAgreed} />;
+  }
 
   // VIDEO CHAT PAGE
   return (
