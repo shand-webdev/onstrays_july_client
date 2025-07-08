@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 
 
-export default function LandingPage({ setAgreed, user, signInWithGoogle }) {
+export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
   const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
   const [lookingFor, setLookingFor] = useState('Any');
   const [selectedInterests, setSelectedInterests] = useState([]);
@@ -362,15 +362,10 @@ export default function LandingPage({ setAgreed, user, signInWithGoogle }) {
               boxShadow: '0 10px 30px rgba(0,255,136,0.3)',
             }}
             className="start-button"
-  onClick={() => {
-    if (!user) {
-      signInWithGoogle();
-    } else {
-      setAgreed(true);
-    }
-  }}
+  onClick={onAgreeAndMaybeLogin}
+
 >
-            Start Video Chat
+            {user ? "Start Video Chat" : "Continue with Google"}
           </button>
         </div>
       </div>

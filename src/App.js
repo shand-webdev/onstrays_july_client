@@ -51,6 +51,20 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
+ 
+
+useEffect(() => {
+  if (localStorage.getItem('onstrays_agreed') === 'yes') {
+    setAgreed(true);
+  }
+}, []);
+
+const handleAgree = () => {
+  setAgreed(true);
+  localStorage.setItem('onstrays_agreed', 'yes');
+};
+
+
 //Redirect Handler
 useEffect(() => {
   // Only run on mount, handle Firebase redirect for mobile
@@ -633,6 +647,17 @@ useEffect(() => {
     };
   }, [handleOnlineStatus, partnerId]);
 
+
+  const handleAgreeAndMaybeLogin = () => {
+  if (user) {
+    setAgreed(true);
+    localStorage.setItem('onstrays_agreed', 'yes');
+  } else {
+    signInWithGoogle();
+  }
+};
+
+
   // CONDITIONAL RENDERING
   if (redirectLoading || authLoading) {
     return (
@@ -666,7 +691,12 @@ useEffect(() => {
   }
 
   if (!agreed) {
-  return <LandingPage setAgreed={setAgreed} signInWithGoogle={signInWithGoogle} user={user} />;
+  return (
+    <LandingPage
+      onAgreeAndMaybeLogin={handleAgreeAndMaybeLogin}
+      user={user}
+    />
+  );
 }
 
 
