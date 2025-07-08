@@ -16,7 +16,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // NAME MANAGEMENT STATE
-  const [displayName, setDisplayName] = useState("Anonymous");
+  const [displayName, setDisplayName] = useState("Stranger");
 
   // Video chat state & refs
   const localVideoRef = useRef(null);
@@ -56,9 +56,10 @@ function App() {
       setAuthLoading(true);
       const result = await signInWithPopup(auth, googleProvider);
       setUser(result.user);
-      setDisplayName("Anonymous"); // Set default name
+      setDisplayName("Stranger"); // Set default name
+      setAgreed(true);
       console.log("✅ User signed in:", result.user.displayName);
-      console.log("🎭 Display name set to: Anonymous");
+      console.log("🎭 Display name set to: Stranger");
     } catch (error) {
       console.error("❌ Google sign-in error:", error);
       if (error.code === 'auth/popup-closed-by-user') {
@@ -639,8 +640,9 @@ function App() {
   }
 
   if (!agreed) {
-    return <LandingPage setAgreed={setAgreed} />;
-  }
+  return <LandingPage setAgreed={setAgreed} signInWithGoogle={signInWithGoogle} user={user} />;
+}
+
 
   if (!user) {
     return (
@@ -716,7 +718,7 @@ function App() {
   // VIDEO CHAT PAGE
   return (
     <div style={{ 
-      background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", 
+      background: "linear-gradient(135deg, #0f2027 0%, #2c5364 100%)", 
       color: "#fff", 
       minHeight: "100vh", 
       display: "flex", 
