@@ -14,6 +14,7 @@ function App() {
   // GOOGLE AUTHENTICATION STATE
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // NAME MANAGEMENT STATE
   const [displayName, setDisplayName] = useState("Stranger");
@@ -50,27 +51,32 @@ function App() {
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
-  // GOOGLE AUTHENTICATION FUNCTIONS
   const signInWithGoogle = async () => {
-    try {
-      setAuthLoading(true);
+  try {
+    setAuthLoading(true);
+    if (isMobile) {
+      // On mobile, use redirect for Google Auth
+      await signInWithRedirect(auth, googleProvider);
+    } else {
+      // On desktop, use popup for Google Auth
       const result = await signInWithPopup(auth, googleProvider);
       setUser(result.user);
       setDisplayName("Stranger"); // Set default name
       setAgreed(true);
       console.log("✅ User signed in:", result.user.displayName);
       console.log("🎭 Display name set to: Stranger");
-    } catch (error) {
-      console.error("❌ Google sign-in error:", error);
-      if (error.code === 'auth/popup-closed-by-user') {
-        alert("Sign-in cancelled. Please try again.");
-      } else {
-        alert("Sign-in failed. Please try again.");
-      }
-    } finally {
-      setAuthLoading(false);
     }
-  };
+  } catch (error) {
+    console.error("❌ Google sign-in error:", error);
+    if (error.code === 'auth/popup-closed-by-user') {
+      alert("Sign-in cancelled. Please try again.");
+    } else {
+      alert("Sign-in failed. Please try again.");
+    }
+  } finally {
+    setAuthLoading(false);
+  }
+};
 
   // AUTH STATE LISTENER
   useEffect(() => {
