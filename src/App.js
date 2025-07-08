@@ -4,8 +4,10 @@ import LandingPage from "./pages/myLandingPage.js";
 import UserAccount from "./components/UserAccount.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider } from './firebase-config';
+import ChatBox from "./components/ChatBox";
 
-const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
+
+const SIGNAL_SERVER_URL = "http://localhost:3001";//"https://onstrays-july.onrender.com";
 
 function App() {
   
@@ -24,6 +26,11 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const remoteVideoRef = useRef(null);
   const [status, setStatus] = useState("Waiting for match...");
   const [socket, setSocket] = useState(null);
+
+  // Chat state
+  const [messages, setMessages] = useState([]); // Array of { sender: "me"|"stranger", text: "..." }
+const [messageInput, setMessageInput] = useState("");
+
 
   // WebRTC state
   const pcRef = useRef(null);
@@ -383,6 +390,7 @@ useEffect(() => {
   // Clean up peer connection
   const cleanupPeerConnection = useCallback(() => {
     clearReconnectionTimers();
+    setMessages([]);
     
     if (pcRef.current) {
       pcRef.current.close();
@@ -397,6 +405,7 @@ useEffect(() => {
     isSettingRemoteAnswerPendingRef.current = false;
   }, [clearReconnectionTimers]);
 
+ 
   // Handle next button click
   const handleNext = useCallback(() => {
     if (socket) {
@@ -404,6 +413,8 @@ useEffect(() => {
       socket.emit("next");
       setStatus("Finding new match...");
       cleanupPeerConnection();
+      setMessages([]); // Clear messages
+
     }
   }, [socket, cleanupPeerConnection]);
 
@@ -566,52 +577,105 @@ useEffect(() => {
     setStatus("Waiting for match...");
   }, [cleanupPeerConnection]);
 
-  // Initialize socket connection and media
-  useEffect(() => {
-    if (!agreed || !user || socket) return;
-    
-    const initConnection = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        });
-        
-        localStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-
-        const s = io(SIGNAL_SERVER_URL, { 
-          transports: ["websocket", "polling"]
-        });
-
-        setSocket(s);
-        socketRef.current = s;
-
-        s.on("connect", () => {
-          console.log("✅ Connected:", s.id);
-          setStatus("Waiting for match...");
-        });
-
-        s.on("matched", handleMatched);
-        s.on("partner_disconnected", handlePartnerDisconnected);
-        s.on("partner_next", handlePartnerNext);
-        s.on("offer", (data) => {
-          console.log("🎯 OFFER EVENT RECEIVED:", data);
-          handleOffer(data);
-        });
-        s.on("answer", handleAnswer);
-        s.on("ice-candidate", handleIceCandidate);
-
-      } catch (error) {
-        console.error("Error initializing:", error);
-        setStatus("Camera/Mic access denied.");
+// Initialize socket connection and media
+useEffect(() => {
+  if (!agreed || !user || socket) return;
+  
+  const initConnection = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
       }
-    };
 
-    initConnection();
-  }, [agreed, user, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
+      const s = io(SIGNAL_SERVER_URL, { 
+        transports: ["websocket", "polling"]
+      });
+
+      setSocket(s);
+      socketRef.current = s;
+
+      s.on("connect", () => {
+        console.log("✅ Connected:", s.id);
+        setStatus("Waiting for match...");
+      });
+        s.emit("test-connection", { message: "Hello from frontend" });
+
+
+      s.on("matched", handleMatched);
+      s.on("partner_disconnected", handlePartnerDisconnected);
+      s.on("partner_next", handlePartnerNext);
+      s.on("offer", (data) => {
+        console.log("🎯 OFFER EVENT RECEIVED:", data);
+        handleOffer(data);
+      });
+      s.on("answer", handleAnswer);
+      s.on("ice-candidate", handleIceCandidate);
+
+      s.on("test-response", (data) => {
+  console.log("🧪 FRONTEND: Test response received:", data);
+});
+      
+      // Move this inside the try block:
+      s.on("message", (data) => {
+          console.log("📨 RECEIVED MESSAGE EVENT:", data); // Add this
+  console.log("📨 Message content:", data.message);
+        setMessages(prev => [...prev, { 
+          sender: "stranger", 
+          text: data.message,
+          timestamp: new Date()
+        }]);
+      });
+
+    } catch (error) {
+      console.error("Error initializing:", error);
+      setStatus("Camera/Mic access denied.");
+    }
+  };
+
+  initConnection();
+}, [agreed, user, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
+
+  const handleSendMessage = () => {
+    console.log("🔥 handleSendMessage called!"); // Add this first
+  console.log("📊 State check:", { 
+    messageInput: messageInput.trim(), 
+    socket: !!socket, 
+    partnerId: partnerId }); // Add this debug log
+
+  if (!messageInput.trim() || !socket || !partnerId) {
+        console.log("❌ Message blocked - missing requirements");
+    return;
+  }
+  console.log("📤 Sending message to backend:", messageInput, "to partner:", partnerId); // Add this
+
+  // Add message to your own chat
+  setMessages(prev => [...prev, { 
+    sender: "me", 
+    text: messageInput,
+    timestamp: new Date()
+  }]);
+  
+  // Send message to partner via socket
+  socket.emit("message", {
+    message: messageInput,
+    partnerId: partnerId
+  });
+
+  console.log("🔍 Socket connected?", socket.connected);
+console.log("🔍 Socket ID:", socket.id);
+    console.log("✅ Message emitted to socket"); // Add this
+
+  
+  setMessageInput("");
+};
+
+
 
   // Monitor internet connection
   useEffect(() => {
@@ -771,214 +835,271 @@ useEffect(() => {
     );
   }
 
-  // VIDEO CHAT PAGE
-  return (
-    <div style={{ 
-      background: "linear-gradient(135deg, #0f2027 0%, #2c5364 100%)", 
-      color: "#fff", 
-      minHeight: "100vh", 
-      display: "flex", 
-      flexDirection: "column", 
-      alignItems: "center", 
-      justifyContent: "center",
-      padding: "20px",
-      position: "relative"
-    }}>
-      {/* USER ACCOUNT COMPONENT */}
-      <UserAccount 
-        user={user} 
-        displayName={displayName} 
-        setDisplayName={setDisplayName} 
-      />
-
-      <h1 style={{ marginBottom: "20px", fontSize: "2.5rem", fontWeight: "bold" }}>
-        OnStrays
-      </h1>
-
-      {/* Display current name */}
-      <div style={{ 
-        marginBottom: "15px", 
-        fontSize: "1rem",
-        opacity: "0.8",
-        background: "rgba(255, 255, 255, 0.1)",
-        padding: "8px 16px",
-        borderRadius: "20px",
-        backdropFilter: "blur(10px)"
-      }}>
-        You are: <strong>{displayName}</strong>
-      </div>
+ return (
+  <div style={{ 
+    height: "100vh", 
+    width: "100vw",
+    backgroundColor: "#000000", 
+    color: "#ffffff", 
+    display: "flex", 
+    flexDirection: "column",
+    margin: "0",
+    padding: "0",
+    position: "fixed",
+    top: "0",
+    left: "0",
+    overflow: "hidden"
+  }}>
+    {/* Global CSS Reset */}
+    <style jsx global>{`
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
       
-      <div style={{ 
-        display: "flex", 
-        gap: "20px", 
-        marginBottom: "20px",
-        flexWrap: "wrap",
-        justifyContent: "center"
-      }}>
-        <div style={{ position: "relative" }}>
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            muted 
-            playsInline
-            style={{ 
-              width: "400px", 
-              height: "300px",
-              background: "#374151", 
-              borderRadius: "15px",
-              border: "2px solid #4f46e5",
-              objectFit: "cover"
-            }} 
-          />
-          <div style={{
-            position: "absolute",
-            bottom: "10px",
-            left: "10px",
-            background: "rgba(0, 0, 0, 0.8)",
-            color: "#fff",
-            padding: "6px 12px",
-            borderRadius: "8px",
-            fontSize: "14px",
-            fontWeight: "600",
-            backdropFilter: "blur(10px)"
-          }}>
-            {displayName}
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+    `}</style>
+    
+    {/* Navigation Bar */}
+    <nav style={{ backgroundColor: "#181818", borderBottom: "1px solid #222222", padding: "16px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", background: "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          Onstrays
+        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+<div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "100px" }}>            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: isOnline ? "#19f0b8" : "#ef4444" }}></div>
+            <span style={{ fontSize: "0.875rem", color: "#cccccc" }}>
+              {showOfflineWarning ? "Offline" :
+               connectionLost ? "Connection Lost" : 
+               isReconnecting ? "Reconnecting..." : 
+               status}
+            </span>
           </div>
-        </div>
-        
-        <div style={{ position: "relative" }}>
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline
-            style={{ 
-              width: "400px", 
-              height: "300px",
-              background: "#374151", 
-              borderRadius: "15px",
-              border: "2px solid #10b981",
-              objectFit: "cover"
-            }} 
+          <UserAccount 
+            user={user} 
+            displayName={displayName} 
+            setDisplayName={setDisplayName} 
           />
-          <div style={{
-            position: "absolute",
-            bottom: "10px",
-            left: "10px",
-            background: "rgba(0, 0, 0, 0.8)",
-            color: "#fff",
-            padding: "6px 12px",
-            borderRadius: "8px",
-            fontSize: "14px",
-            fontWeight: "600",
-            backdropFilter: "blur(10px)"
-          }}>
-            Stranger
-          </div>
         </div>
       </div>
-      
-      <div style={{ 
-        marginBottom: "20px", 
-        fontSize: "1.2rem",
-        textAlign: "center",
-        background: showOfflineWarning ? "rgba(239, 68, 68, 0.2)" :
-                    connectionLost ? "rgba(239, 68, 68, 0.2)" : 
-                    isReconnecting ? "rgba(251, 191, 36, 0.2)" : 
-                    "rgba(255, 255, 255, 0.1)",
-        padding: "10px 20px",
-        borderRadius: "10px",
-        backdropFilter: "blur(5px)",
-        border: showOfflineWarning ? "2px solid #ef4444" :
-                connectionLost ? "2px solid #ef4444" : 
-                isReconnecting ? "2px solid #f59e0b" : 
-                "1px solid transparent"
-      }}>
-        {showOfflineWarning ? (
-          <div>
-            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
-              📵 You're Offline
-            </div>
-            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
-              Check your internet connection
+    </nav>
+
+    {/* Main Content */}
+    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      {/* Left Side - Stranger Video */}
+      <div style={{ width: "60%", backgroundColor: "#181818", position: "relative" }}>
+        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div style={{ position: "relative", width: "100%", height: "100%", maxWidth: "1024px", maxHeight: "100%" }}>
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              style={{ 
+                width: "100%", 
+                height: "100%", 
+                objectFit: "cover", 
+                borderRadius: "8px", 
+                backgroundColor: "#222222",
+                maxHeight: "calc(100vh - 80px)"
+              }}
+            />
+            
+            {/* Status Overlay on Stranger Video */}
+            {(!partnerId || !remoteVideoRef.current?.srcObject) && (
+              <div style={{
+                position: "absolute",
+                top: "0",
+                left: "0",
+                right: "0",
+                bottom: "0",
+                backgroundColor: "rgba(34, 34, 34, 0.9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                borderRadius: "8px"
+              }}>
+                <div style={{ fontSize: "1.5rem", marginBottom: "12px" }}>
+                  {showOfflineWarning ? "📵" :
+                   connectionLost ? "❌" : 
+                   isReconnecting ? "🔄" : 
+                   "🔍"}
+                </div>
+                <div style={{ fontSize: "1.2rem", textAlign: "center", marginBottom: "8px", color: "#ffffff" }}>
+                  {showOfflineWarning ? "You're Offline" :
+                   connectionLost ? "Connection Lost" : 
+                   isReconnecting ? "Trying to Reconnect..." : 
+                   status}
+                </div>
+                {(showOfflineWarning || connectionLost || isReconnecting) && (
+                  <div style={{ fontSize: "0.9rem", opacity: "0.8", textAlign: "center", color: "#cccccc" }}>
+                    {showOfflineWarning ? "Check your internet connection" :
+                     connectionLost ? "Unable to reconnect - click Next to find new match" : 
+                     `${reconnectionTimer} seconds remaining`}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Report Button */}
+            <button style={{ 
+              position: "absolute", 
+              top: "16px", 
+              left: "16px", 
+              backgroundColor: "#ef4444", 
+              padding: "8px", 
+              borderRadius: "20%", 
+              border: "none", 
+              cursor: "pointer",
+              transition: "background-color 0.3s",
+              boxShadow: "0 0 15px rgba(53, 0, 211, 0.3)"
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = "#dc2626"}
+            onMouseOut={(e) => e.target.style.backgroundColor = "#ef4444"}>
+              <span style={{ color: "#fff", fontSize: "16px" }}>⚠</span>
+            </button>
+            
+            {/* Next Button */}
+            <button
+              onClick={handleNext}
+              disabled={!socket || isReconnecting || showOfflineWarning}
+              style={{ 
+                position: "absolute", 
+                bottom: "16px", 
+                right: "16px", 
+                padding: "8px 24px", 
+                borderRadius: "20px", 
+                border: "none", 
+                fontSize: "0.875rem", 
+                fontWeight: "500",
+                cursor: (!socket || isReconnecting || showOfflineWarning) ? "not-allowed" : "pointer",
+                transition: "all 0.3s",
+                backgroundColor: !socket || isReconnecting || showOfflineWarning 
+                  ? "#23272b" 
+                  : connectionLost 
+                    ? "#ef4444" 
+                    : "#19f0b8",
+                background: (!socket || isReconnecting || showOfflineWarning) 
+                  ? "#23272b" 
+                  : connectionLost 
+                    ? "#ef4444" 
+                    : "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)",
+                color: "#000000",
+                boxShadow: (!socket || isReconnecting || showOfflineWarning) ? "none" : "0 0 20px rgba(25, 240, 184, 0.4)"
+              }}
+              onMouseOver={(e) => {
+                if (socket && !isReconnecting && !showOfflineWarning) {
+                  e.target.style.boxShadow = connectionLost ? "0 0 20px rgba(239, 68, 68, 0.4)" : "0 0 25px rgba(25, 240, 184, 0.6)";
+                }
+              }}
+              onMouseOut={(e) => {
+                if (socket && !isReconnecting && !showOfflineWarning) {
+                  e.target.style.boxShadow = connectionLost ? "none" : "0 0 20px rgba(25, 240, 184, 0.4)";
+                }
+              }}
+            >
+              {showOfflineWarning ? "Offline" :
+               isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
+               connectionLost ? "Find Next Match" : 
+               "Next"}
+            </button>
+            
+            {/* Stranger Name Tag */}
+            <div style={{ 
+              position: "absolute", 
+              bottom: "16px", 
+              left: "18px", 
+              backgroundColor: "rgba(0, 0, 0, 0.8)", 
+              padding: "4px 12px", 
+              borderRadius: "20px",
+              backdropFilter: "blur(10px)",
+              border: "1px solid #19f0b8"
+            }}>
+              <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#ffffff" }}>Stranger</span>
             </div>
           </div>
-        ) : connectionLost ? (
-          <div>
-            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
-              ❌ Connection Lost
-            </div>
-            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
-              Unable to reconnect - click Next to find new match
-            </div>
-          </div>
-        ) : isReconnecting ? (
-          <div>
-            <div style={{ fontSize: "1.4rem", marginBottom: "5px" }}>
-              🔄 Trying to Reconnect...
-            </div>
-            <div style={{ fontSize: "0.9rem", opacity: "0.8" }}>
-              {reconnectionTimer} seconds remaining
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
-            <span style={{ 
-              width: "8px", 
-              height: "8px", 
-              borderRadius: "50%", 
-              backgroundColor: isOnline ? "#10b981" : "#ef4444" 
-            }}></span>
-            {status}
-          </div>
-        )}
-      </div>
-      
-      <div style={{ display: "flex", gap: "15px" }}>
-        <button 
-          onClick={handleNext} 
-          disabled={!socket || isReconnecting || showOfflineWarning}
-          style={{ 
-            padding: "14px 40px", 
-            borderRadius: "10px", 
-            background: !socket || isReconnecting || showOfflineWarning ? "#6b7280" : 
-                        connectionLost ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" :
-                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-            color: "#fff", 
-            border: "none", 
-            fontWeight: "bold",
-            fontSize: "16px",
-            cursor: (!socket || isReconnecting || showOfflineWarning) ? "not-allowed" : "pointer",
-            transition: "all 0.3s ease",
-            boxShadow: (!socket || isReconnecting || showOfflineWarning) ? "none" : "0 4px 15px rgba(37, 99, 235, 0.4)"
-          }}
-          onMouseOver={(e) => (socket && !isReconnecting && !showOfflineWarning) && (e.target.style.transform = "translateY(-2px)")}
-          onMouseOut={(e) => (socket && !isReconnecting && !showOfflineWarning) && (e.target.style.transform = "translateY(0)")}
-        >
-          {showOfflineWarning ? "Offline" :
-           isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
-           connectionLost ? "Find Next Match" : 
-           "Next"}
-        </button>
-      </div>
-      
-      <div style={{ 
-        marginTop: "20px", 
-        fontSize: "12px", 
-        opacity: "0.7",
-        textAlign: "center"
-      }}>
-        Role: {isPolite ? "Polite" : "Impolite"} | Partner: {partnerId || "None"}
+        </div>
       </div>
 
-      {/* CSS for loading animation */}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+      {/* Right Side */}
+      <div style={{ width: "40%", backgroundColor: "#000000", display: "flex", flexDirection: "column" }}>
+        {/* My Video - Top Right */}
+        <div style={{ height: "450px", padding: "5px", borderBottom: "1px solid #222222" }}>
+          <div style={{ position: "relative", height: "100%" }}>
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ 
+                width: "100%", 
+                height: "100%", 
+                objectFit: "cover", 
+                borderRadius: "8px", 
+                backgroundColor: "#222222",
+                border: "1px solid #19f0b8"
+              }}
+            />
+            
+            {/* My Name Tag */}
+            <div style={{ 
+              position: "absolute", 
+              bottom: "13px", 
+              left: "8px", 
+              backgroundColor: "rgba(0, 0, 0, 0.8)", 
+              padding: "4px 12px", 
+              borderRadius: "20px",
+              backdropFilter: "blur(10px)",
+              border: "1px solid #19f0b8"
+            }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#ffffff" }}>{displayName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Section */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <ChatBox
+            messages={messages}
+            messageInput={messageInput}
+            setMessageInput={setMessageInput}
+            onSend={handleSendMessage}
+          />
+        </div>
+      </div>
     </div>
-  );
+
+    {/* Debug Info */}
+    <div style={{ 
+      position: "absolute",
+      bottom: "10px",
+      left: "10px",
+      fontSize: "12px", 
+      opacity: "0.7",
+      background: "rgba(0, 0, 0, 0.8)",
+      padding: "4px 8px",
+      borderRadius: "4px",
+      color: "#cccccc",
+      border: "1px solid #222222"
+    }}>
+      Role: {isPolite ? "Polite" : "Impolite"} | Partner: {partnerId || "None"}
+    </div>
+  </div>
+);
 }
 
 export default App;

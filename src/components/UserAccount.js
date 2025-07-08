@@ -66,8 +66,8 @@ const UserAccount = ({ user, displayName, setDisplayName }) => {
       ref={dropdownRef}
       style={{ 
         position: "absolute", 
-        top: "20px", 
-        right: "20px",
+        top: "8px", 
+        right: "30px",
         zIndex: 1000
       }}
     >
