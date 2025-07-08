@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from "react-router-dom";
-
 
 
 export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoogle, onStartVideoChat }) {  const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
@@ -358,8 +356,12 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
   className="start-button"
   onClick={() => {
     if (user) {
+      
       onStartVideoChat();
     } else {
+      if (isMobile) {
+      localStorage.setItem('onstrays_agreed', 'yes');
+    }
       signInWithGoogle();
     }
   }}

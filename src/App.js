@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
 import LandingPage from "./pages/myLandingPage.js";
 import UserAccount from "./components/UserAccount.js";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider } from './firebase-config';
 import ChatBox from "./components/ChatBox";
 
@@ -66,10 +66,6 @@ useEffect(() => {
   }
 }, []);
 
-const handleAgree = () => {
-  setAgreed(true);
-  localStorage.setItem('onstrays_agreed', 'yes');
-};
 
 
 //Redirect Handler
@@ -628,7 +624,7 @@ useEffect(() => {
   };
 
   initConnection();
-}, [agreed, user, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
+}, [agreed, user, socket, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
   const handleSendMessage = () => {
     console.log("🔥 handleSendMessage called!"); // Add this first
