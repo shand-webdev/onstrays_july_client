@@ -7,7 +7,7 @@ import { auth, googleProvider } from './firebase-config';
 import ChatBox from "./components/ChatBox";
 
 
-const SIGNAL_SERVER_URL = "http://localhost:3001";//"https://onstrays-july.onrender.com";
+const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
 
 function App() {
   
