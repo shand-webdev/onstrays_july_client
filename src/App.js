@@ -2,22 +2,22 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
 import LandingPage from "./pages/myLandingPage.js";
 import UserAccount from "./components/UserAccount.js";
-import { signInWithPopup, signOut, onAuthStateChanged, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider } from './firebase-config';
 
 const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
 
 function App() {
-  // AGREEMENT STATE
-  const [agreed, setAgreed] = useState(false);
+  
 
   // GOOGLE AUTHENTICATION STATE
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const [agreed, setAgreed] = useState(false);
+const [authLoading, setAuthLoading] = useState(true);
+const [redirectLoading, setRedirectLoading] = useState(true);
+const [displayName, setDisplayName] = useState("Stranger");
 
-  // NAME MANAGEMENT STATE
-  const [displayName, setDisplayName] = useState("Stranger");
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // Video chat state & refs
   const localVideoRef = useRef(null);
@@ -51,32 +51,22 @@ function App() {
   // Store socket reference for manual negotiation
   const socketRef = useRef(null);
 
-  const signInWithGoogle = async () => {
-  try {
-    setAuthLoading(true);
-    if (isMobile) {
-      // On mobile, use redirect for Google Auth
-      await signInWithRedirect(auth, googleProvider);
-    } else {
-      // On desktop, use popup for Google Auth
-      const result = await signInWithPopup(auth, googleProvider);
-      setUser(result.user);
-      setDisplayName("Stranger"); // Set default name
-      setAgreed(true);
-      console.log("✅ User signed in:", result.user.displayName);
-      console.log("🎭 Display name set to: Stranger");
-    }
-  } catch (error) {
-    console.error("❌ Google sign-in error:", error);
-    if (error.code === 'auth/popup-closed-by-user') {
-      alert("Sign-in cancelled. Please try again.");
-    } else {
-      alert("Sign-in failed. Please try again.");
-    }
-  } finally {
-    setAuthLoading(false);
-  }
-};
+//Redirect Handler
+useEffect(() => {
+  // Only run on mount, handle Firebase redirect for mobile
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result && result.user) {
+        setUser(result.user);
+        setDisplayName("Stranger");
+        setAgreed(true);
+      }
+    })
+    .finally(() => {
+      setRedirectLoading(false);
+    });
+}, []);
+
 
   // AUTH STATE LISTENER
   useEffect(() => {
@@ -92,21 +82,32 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-  // Runs once on first load, for signInWithRedirect
-  getRedirectResult(auth)
-    .then((result) => {
-      if (result && result.user) {
-        setUser(result.user);
-        setDisplayName("Stranger");
-        setAgreed(true);
-      }
-    })
-    .catch((error) => {
-      // Handle redirect errors here if you want
-      console.error("Redirect auth error:", error);
-    });
-}, []);
+
+  // [C] Login function
+  const signInWithGoogle = async () => {
+  setAuthLoading(true);
+  try {
+    if (isMobile) {
+      await signInWithRedirect(auth, googleProvider);
+      // Do NOT setAgreed(true) or setUser here (will happen after redirect)
+    } else {
+      const result = await signInWithPopup(auth, googleProvider);
+      setUser(result.user);
+      setDisplayName("Stranger");
+      setAgreed(true);
+    }
+  } catch (error) {
+    console.error("❌ Google sign-in error:", error);
+    if (error.code === 'auth/popup-closed-by-user') {
+      alert("Sign-in cancelled. Please try again.");
+    } else {
+      alert("Sign-in failed. Please try again.");
+    }
+  } finally {
+    setAuthLoading(false);
+  }
+};
+
 
   // AUTO-TRIGGER GOOGLE SIGN-IN
   useEffect(() => {
@@ -118,6 +119,9 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [agreed, user, authLoading]);
+
+
+
 
   // Internet connection checker
   const checkInternetConnection = async () => {
@@ -630,7 +634,7 @@ function App() {
   }, [handleOnlineStatus, partnerId]);
 
   // CONDITIONAL RENDERING
-  if (authLoading) {
+  if (redirectLoading || authLoading) {
     return (
       <div style={{
         minHeight: "100vh",
