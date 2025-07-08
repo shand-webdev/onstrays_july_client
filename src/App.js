@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import io from "socket.io-client";
 import LandingPage from "./pages/myLandingPage.js";
 import UserAccount from "./components/UserAccount.js";
-import { signInWithPopup, signOut, onAuthStateChanged, signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from './firebase-config';
 
 const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
@@ -91,6 +91,22 @@ function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+  // Runs once on first load, for signInWithRedirect
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result && result.user) {
+        setUser(result.user);
+        setDisplayName("Stranger");
+        setAgreed(true);
+      }
+    })
+    .catch((error) => {
+      // Handle redirect errors here if you want
+      console.error("Redirect auth error:", error);
+    });
+}, []);
 
   // AUTO-TRIGGER GOOGLE SIGN-IN
   useEffect(() => {
