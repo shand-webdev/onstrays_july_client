@@ -7,7 +7,7 @@ import { auth, googleProvider } from './firebase-config';
 import ChatBox from "./components/ChatBox";
 
 
-const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
+const SIGNAL_SERVER_URL = "http://localhost:3001"//"https://onstrays-july.onrender.com";
 
 function App() {
   
@@ -129,17 +129,6 @@ useEffect(() => {
   }
 };
 
-
-  // AUTO-TRIGGER GOOGLE SIGN-IN
-  useEffect(() => {
-    if (agreed && !user && !authLoading) {
-      const timer = setTimeout(() => {
-        signInWithGoogle();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [agreed, user, authLoading]);
 
 
 
@@ -754,86 +743,22 @@ console.log("🔍 Socket ID:", socket.id);
     );
   }
 
-  if (!agreed) {
+ if (!agreed || !user) {
   return (
     <LandingPage
       onAgreeAndMaybeLogin={handleAgreeAndMaybeLogin}
       user={user}
+      signInWithGoogle={signInWithGoogle}
+      onStartVideoChat={() => {
+        setAgreed(true);
+        localStorage.setItem('onstrays_agreed', 'yes');
+      }}
     />
   );
 }
 
 
-  if (!user) {
-    return (
-      <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        color: "#fff",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px"
-      }}>
-        <div style={{
-          textAlign: "center",
-          maxWidth: "500px",
-          background: "rgba(255, 255, 255, 0.1)",
-          padding: "40px",
-          borderRadius: "20px",
-          backdropFilter: "blur(10px)",
-          border: "1px solid rgba(255, 255, 255, 0.2)"
-        }}>
-          <h1 style={{ fontSize: "2.5rem", marginBottom: "20px", fontWeight: "bold" }}>
-            OnStrays
-          </h1>
-          <p style={{ fontSize: "1.1rem", marginBottom: "30px", lineHeight: "1.6" }}>
-            Connecting you anonymously...
-          </p>
-          
-          {!authLoading && (
-            <button
-              onClick={signInWithGoogle}
-              style={{
-                padding: "16px 32px",
-                borderRadius: "12px",
-                background: "linear-gradient(135deg, #db4437 0%, #c23321 100%)",
-                color: "#fff",
-                border: "none",
-                fontSize: "16px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-                boxShadow: "0 4px 15px rgba(219, 68, 55, 0.4)",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                margin: "0 auto"
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continue Anonymously
-            </button>
-          )}
-          
-          <div style={{ 
-            marginTop: "20px", 
-            fontSize: "0.9rem", 
-            opacity: "0.8",
-            lineHeight: "1.4"
-          }}>
-            Quick verification required. Your identity remains anonymous.
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
  return (
   <div style={{ 
@@ -877,9 +802,19 @@ console.log("🔍 Socket ID:", socket.id);
     {/* Navigation Bar */}
     <nav style={{ backgroundColor: "#181818", borderBottom: "1px solid #222222", padding: "16px 24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", background: "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Onstrays
-        </h1>
+        <h1 
+  style={{ 
+    fontSize: "1.5rem", 
+    fontWeight: "bold", 
+    background: "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)", 
+    WebkitBackgroundClip: "text", 
+    WebkitTextFillColor: "transparent",
+    cursor: "pointer"
+  }}
+  onClick={() => setAgreed(false)}
+>
+  Onstrays
+</h1>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "100px" }}>            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: isOnline ? "#19f0b8" : "#ef4444" }}></div>
             <span style={{ fontSize: "0.875rem", color: "#cccccc" }}>

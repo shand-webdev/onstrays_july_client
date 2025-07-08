@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 
 
-export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
-  const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
+export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoogle, onStartVideoChat }) {  const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
   const [lookingFor, setLookingFor] = useState('Any');
   const [selectedInterests, setSelectedInterests] = useState([]);
 
@@ -42,16 +41,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
   // Responsive helper
   const isMobile = window.innerWidth <= 768;
 
-  const handleLogin = () => {
-    // TODO: Google Auth here
-    alert('Google Auth login triggered');
-  };
 
-  const handleStartChat = () => {
-    // TODO: Pass details to next page, call setAgreed(true) to enter chat
-    onAgreeAndMaybeLogin(true);
-   
-  };
 
   const toggleInterest = (interest) => {
     setSelectedInterests((prev) =>
@@ -113,12 +103,12 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
           }}
          className="start-button"
   onClick={() => {
-    if (!user) {
-      onAgreeAndMaybeLogin();
-    } else {
-      onAgreeAndMaybeLogin(true);
-    }
-  }}
+  if (!user) {
+    signInWithGoogle();
+  } else {
+    onStartVideoChat();
+  }
+}}
         >
           <UserIcon />
         </div>
@@ -347,26 +337,35 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
 
           {/* Start Button */}
           <button
-            style={{
-              width: '100%',
-              padding: 16,
-              background: 'linear-gradient(135deg, #00ff88, #00cc6a)',
-              border: 'none',
-              borderRadius: 25,
-              color: '#000',
-              fontSize: '1.1rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              marginTop: 30,
-              transition: 'all 0.3s',
-              boxShadow: '0 10px 30px rgba(0,255,136,0.3)',
-            }}
-            className="start-button"
-  onClick={onAgreeAndMaybeLogin}
-
+  style={{
+    width: '100%',
+    padding: 16,
+    background: user 
+      ? 'linear-gradient(135deg, #00ff88, #00cc6a)' 
+      : 'linear-gradient(135deg, #ff4444, #cc2222)',
+    border: 'none',
+    borderRadius: 25,
+    color: '#000',
+    fontSize: '1.1rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    marginTop: 30,
+    transition: 'all 0.3s',
+    boxShadow: user 
+      ? '0 10px 30px rgba(0,255,136,0.3)' 
+      : '0 10px 30px rgba(255,68,68,0.3)',
+  }}
+  className="start-button"
+  onClick={() => {
+    if (user) {
+      onStartVideoChat();
+    } else {
+      signInWithGoogle();
+    }
+  }}
 >
-            {user ? "Start Video Chat" : "Continue with Google"}
-          </button>
+  {user ? "Start Video Chat" : "Login to Video Chat"}
+</button>
         </div>
       </div>
 
