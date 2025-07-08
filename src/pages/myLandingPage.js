@@ -49,7 +49,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
 
   const handleStartChat = () => {
     // TODO: Pass details to next page, call setAgreed(true) to enter chat
-    setAgreed(true);
+    onAgreeAndMaybeLogin(true);
    
   };
 
@@ -114,9 +114,9 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user }) {
          className="start-button"
   onClick={() => {
     if (!user) {
-      signInWithGoogle();
+      onAgreeAndMaybeLogin();
     } else {
-      setAgreed(true);
+      onAgreeAndMaybeLogin(true);
     }
   }}
         >
