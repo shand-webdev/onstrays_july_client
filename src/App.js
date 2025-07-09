@@ -87,7 +87,7 @@ const [messageInput, setMessageInput] = useState("");
     const result = await signInWithPopup(auth, googleProvider);
     setUser(result.user);
     setDisplayName("Stranger");
-    setAgreed(true);
+    //setAgreed(true);
   } catch (error) {
     console.error("❌ Google sign-in error:", error);
     if (error.code === 'auth/popup-closed-by-user') {
@@ -619,6 +619,9 @@ useEffect(() => {
     text: messageInput,
     timestamp: new Date()
   }]);
+
+  
+
   
   // Send message to partner via socket
   socket.emit("message", {
@@ -635,6 +638,41 @@ console.log("🔍 Socket ID:", socket.id);
 };
 
 
+
+useEffect(() => {
+  // This runs when 'agreed' changes from true to false (leaving video chat)
+  return () => {
+    if (agreed) { // Only cleanup if we were in video chat
+      console.log("🚨 User leaving video chat - cleaning up...");
+      
+      // Stop camera/microphone
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log("🛑 Stopped track:", track.kind);
+        });
+        localStreamRef.current = null;
+      }
+      
+      // Close WebRTC connection
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+      
+      // Disconnect from socket
+      if (socketRef.current) {
+        socketRef.current.emit("disconnect_match");
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      setSocket(null);
+      setPartnerId(null);
+      setMessages([]);
+    }
+  };
+}, [agreed]); // Watches 'agreed' - runs cleanup when it changes
 
   // Monitor internet connection
   useEffect(() => {
@@ -784,7 +822,40 @@ if (authLoading) {
     WebkitTextFillColor: "transparent",
     cursor: "pointer"
   }}
-  onClick={() => setAgreed(false)}
+
+  onClick={() => {
+  console.log("🏠 Going back to landing page...");
+  
+  // Stop camera/microphone immediately
+  if (localStreamRef.current) {
+    localStreamRef.current.getTracks().forEach(track => {
+      track.stop();
+      console.log("🛑 Stopped track:", track.kind);
+    });
+    localStreamRef.current = null;
+  }
+  
+  // Close WebRTC connection
+  if (pcRef.current) {
+    pcRef.current.close();
+    pcRef.current = null;
+  }
+  
+  // Disconnect from partner
+  if (socketRef.current) {
+    socketRef.current.emit("disconnect_match");
+    socketRef.current.disconnect();
+    socketRef.current = null;
+  }
+  
+  // Reset state
+  setSocket(null);
+  setPartnerId(null);
+  setMessages([]);
+  setAgreed(false); // Go back to landing page
+}}
+
+
 >
   Onstrays
 </h1>
