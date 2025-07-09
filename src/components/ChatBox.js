@@ -4,32 +4,47 @@ import React, { useRef, useEffect } from 'react';
 
 
 const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
- 
- const messagesEndRef = useRef(null);
-
-  // Add this useEffect
+  const messagesEndRef = useRef(null);
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
- 
-    const handleKeyPress = (e) => {
+  const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       onSend();
     }
   };
 
-  
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ 
+      display: "flex", 
+      flexDirection: "column", 
+      height: "100%",
+      position: "relative"  // Add this
+    }}>
       {/* Chat Header */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid #222222", display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#181818" }}>
+      <div style={{ 
+        padding: "12px 16px", 
+        borderBottom: "1px solid #222222", 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "8px", 
+        backgroundColor: "#181818",
+        flexShrink: 0  // Add this - prevents header from shrinking
+      }}>
         <span style={{ fontSize: "16px" }}>💬</span>
         <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#ffffff" }}>Chat</span>
       </div>
 
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px", backgroundColor: "#000000" }}>
+      {/* Messages - FIXED HEIGHT */}
+      <div style={{ 
+        flex: 1, 
+        overflowY: "auto", 
+        padding: "16px", 
+        backgroundColor: "#000000",
+        minHeight: 0  // Add this - allows flex item to shrink below content size
+      }}>
         {messages.length === 0 ? (
           <div style={{ 
             display: "flex", 
@@ -51,7 +66,6 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
                 marginBottom: "12px"
               }}
             >
-                
               <div
                 style={{
                   maxWidth: "240px",
@@ -63,17 +77,20 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
                 }}
               >
                 <p style={{ fontSize: "0.875rem", margin: 0 }}>{message.text}</p>
-                
               </div>
             </div>
           ))
         )}
-          <div ref={messagesEndRef} />
-
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
-      <div style={{ padding: "16px", borderTop: "1px solid #222222", backgroundColor: "#000000" }}>
+      {/* Message Input - FIXED POSITION */}
+      <div style={{ 
+        padding: "16px", 
+        borderTop: "1px solid #222222", 
+        backgroundColor: "#000000",
+        flexShrink: 0  // Add this - prevents input from shrinking
+      }}>
         <div style={{ display: "flex", gap: "8px" }}>
           <input
             type="text"
@@ -105,16 +122,6 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
               cursor: messageInput.trim() ? "pointer" : "not-allowed",
               transition: "all 0.3s",
               boxShadow: messageInput.trim() ? "0 0 15px rgba(25, 240, 184, 0.3)" : "none"
-            }}
-            onMouseOver={(e) => {
-              if (messageInput.trim()) {
-                e.target.style.boxShadow = "0 0 20px rgba(25, 240, 184, 0.5)";
-              }
-            }}
-            onMouseOut={(e) => {
-              if (messageInput.trim()) {
-                e.target.style.boxShadow = "0 0 15px rgba(25, 240, 184, 0.3)";
-              }
             }}
           >
             <span style={{ color: messageInput.trim() ? "#000000" : "#cccccc", fontSize: "16px" }}>➤</span>

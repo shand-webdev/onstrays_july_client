@@ -752,6 +752,7 @@ console.log("🔍 Socket ID:", socket.id);
  return (
   <div style={{ 
     height: "100vh", 
+    maxHeight: "100vh",  // Add this
     width: "100vw",
     backgroundColor: "#000000", 
     color: "#ffffff", 
@@ -960,8 +961,16 @@ console.log("🔍 Socket ID:", socket.id);
       </div>
 
       {/* Right Side */}
-      <div style={{ width: "40%", backgroundColor: "#000000", display: "flex", flexDirection: "column" }}>
-        {/* My Video - Top Right */}
+<div style={{ 
+  width: "40%", 
+  backgroundColor: "#000000", 
+  display: "flex", 
+  flexDirection: "column",
+  height: "100%",
+  maxHeight: "100vh"
+}}>      
+
+  {/* My Video - Top Right */}
         <div style={{ height: "450px", padding: "5px", borderBottom: "1px solid #222222" }}>
           <div style={{ position: "relative", height: "100%" }}>
             <video
@@ -996,14 +1005,19 @@ console.log("🔍 Socket ID:", socket.id);
         </div>
 
         {/* Chat Section */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <ChatBox
-            messages={messages}
-            messageInput={messageInput}
-            setMessageInput={setMessageInput}
-            onSend={handleSendMessage}
-          />
-        </div>
+<div style={{ 
+  height: "calc(100vh - 450px - 80px)",
+  overflow: "hidden",
+  display: "flex", 
+  flexDirection: "column"
+}}>
+  <ChatBox
+    messages={messages}
+    messageInput={messageInput}
+    setMessageInput={setMessageInput}
+    onSend={handleSendMessage}
+  />
+</div>
       </div>
     </div>
 
