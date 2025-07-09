@@ -1,14 +1,25 @@
-// components/ChatBox.js - Replace your entire ChatBox file with this:
 
 import React from 'react';
+import React, { useRef, useEffect } from 'react';
+
 
 const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
-  const handleKeyPress = (e) => {
+ 
+ const messagesEndRef = useRef(null);
+
+  // Add this useEffect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+ 
+    const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       onSend();
     }
   };
 
+  
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Chat Header */}
@@ -40,6 +51,7 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
                 marginBottom: "12px"
               }}
             >
+                
               <div
                 style={{
                   maxWidth: "240px",
@@ -56,6 +68,8 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
             </div>
           ))
         )}
+          <div ref={messagesEndRef} />
+
       </div>
 
       {/* Message Input */}
