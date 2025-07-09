@@ -60,12 +60,6 @@ const [messageInput, setMessageInput] = useState("");
 
  
 
-useEffect(() => {
-  if (localStorage.getItem('onstrays_agreed') === 'yes') {
-    setAgreed(true);
-  }
-}, []);
-
 
 
 //Redirect Handler
@@ -76,7 +70,6 @@ useEffect(() => {
       if (result && result.user) {
         setUser(result.user);
         setDisplayName("Stranger");
-        setAgreed(true);
       }
     })
     .finally(() => {
