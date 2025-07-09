@@ -824,10 +824,11 @@ console.log("🔍 Socket ID:", socket.id);
     </nav>
 
     {/* Main Content */}
-    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: window.innerWidth <= 768 ? "column" : "row" ,overflow: "hidden" }}>
+
       {/* Left Side - Stranger Video */}
-      <div style={{ width: "60%", backgroundColor: "#181818", position: "relative" }}>
-        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ width: window.innerWidth <= 768 ? "100%" : "60%", backgroundColor: "#181818", position: "relative" }}>
+        <div style={{ height: window.innerWidth <= 768 ? "50vh" : "100%",  display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ position: "relative", width: "100%", height: "100%", maxWidth: "1024px", maxHeight: "100%" }}>
             <video
               ref={remoteVideoRef}
@@ -962,16 +963,16 @@ console.log("🔍 Socket ID:", socket.id);
 
       {/* Right Side */}
 <div style={{ 
-  width: "40%", 
+  width: window.innerWidth <= 768 ? "100%" : "40%", // Adjust width for mobile
   backgroundColor: "#000000", 
   display: "flex", 
   flexDirection: "column",
-  height: "100%",
+  height: window.innerWidth <= 768 ? "50vh" : "100%",
   maxHeight: "100vh"
 }}>      
 
   {/* My Video - Top Right */}
-        <div style={{ height: "450px", padding: "5px", borderBottom: "1px solid #222222" }}>
+        <div style={{ height:window.innerWidth<=768? "30vh" : "450px", padding: "5px", borderBottom: "1px solid #222222" }}>
           <div style={{ position: "relative", height: "100%" }}>
             <video
               ref={localVideoRef}
@@ -1006,7 +1007,9 @@ console.log("🔍 Socket ID:", socket.id);
 
         {/* Chat Section */}
 <div style={{ 
-  height: "calc(100vh - 450px - 80px)",
+  height: window.innerWidth <= 768 
+    ? "calc(20vh - 80px)"                                   // Mobile: remaining space
+    : "calc(100vh - 450px - 80px)",  
   overflow: "hidden",
   display: "flex", 
   flexDirection: "column"
