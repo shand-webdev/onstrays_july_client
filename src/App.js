@@ -62,21 +62,7 @@ const [messageInput, setMessageInput] = useState("");
 
 
 
-//Redirect Handler
-useEffect(() => {
-  // Only run on mount, handle Firebase redirect for mobile
-  getRedirectResult(auth)
-    .then((result) => {
-      if (result && result.user) {
-        setUser(result.user);
-        setDisplayName("Stranger");
-        setAgreed(true);
-      }
-    })
-    .finally(() => {
-      setRedirectLoading(false);
-    });
-}, []);
+
 
 
   // AUTH STATE LISTENER
@@ -98,15 +84,10 @@ useEffect(() => {
   const signInWithGoogle = async () => {
   setAuthLoading(true);
   try {
-    if (isMobile) {
-      await signInWithRedirect(auth, googleProvider);
-      // Do NOT setAgreed(true) or setUser here (will happen after redirect)
-    } else {
-      const result = await signInWithPopup(auth, googleProvider);
-      setUser(result.user);
-      setDisplayName("Stranger");
-      setAgreed(true);
-    }
+    const result = await signInWithPopup(auth, googleProvider);
+    setUser(result.user);
+    setDisplayName("Stranger");
+    setAgreed(true);
   } catch (error) {
     console.error("❌ Google sign-in error:", error);
     if (error.code === 'auth/popup-closed-by-user') {
@@ -118,7 +99,6 @@ useEffect(() => {
     setAuthLoading(false);
   }
 };
-
 
 
 
@@ -702,8 +682,8 @@ console.log("🔍 Socket ID:", socket.id);
 
 
   // CONDITIONAL RENDERING
-  if (redirectLoading || authLoading) {
-    return (
+if (authLoading) {
+      return (
       <div style={{
         minHeight: "100vh",
         background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
