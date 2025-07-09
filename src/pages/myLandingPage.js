@@ -246,7 +246,6 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
       alt={country}
       style={{ width: 32, height: 24, borderRadius: 4, marginBottom: 4 }}
     />
-    <span style={{ fontSize: 18 }}>{country}</span>
   </button>
 ))}
 
