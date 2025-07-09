@@ -70,6 +70,7 @@ useEffect(() => {
       if (result && result.user) {
         setUser(result.user);
         setDisplayName("Stranger");
+        setAgreed(true);
       }
     })
     .finally(() => {
@@ -765,6 +766,8 @@ console.log("🔍 Socket ID:", socket.id);
     left: "0",
     overflow: "hidden"
   }}>
+
+    
     {/* Global CSS Reset */}
     <style jsx global>{`
       * {
@@ -1007,9 +1010,9 @@ console.log("🔍 Socket ID:", socket.id);
 
         {/* Chat Section */}
 <div style={{ 
-  height: window.innerWidth <= 768 
+height: window.innerWidth <= 768 
     ? "calc(20vh - 80px)"                                   // Mobile: remaining space
-    : "calc(100vh - 450px - 80px)",  
+    : "calc(100vh - 450px - 80px)", 
   overflow: "hidden",
   display: "flex", 
   flexDirection: "column"
