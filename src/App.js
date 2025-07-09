@@ -540,19 +540,43 @@ const [messageInput, setMessageInput] = useState("");
 useEffect(() => {
   if (!agreed || !user || socket) return;
   
-  const initConnection = async () => {
+  const initConnection = async () => {     // Function starts executing...
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
+    // Check if permissions are already granted
+    const permissions = await navigator.permissions.query({ name: 'camera' });
+    console.log("📷 Camera permission:", permissions.state);
+    
+    // For Safari/iOS, we need to request permissions differently
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' }, //  facing mode for mobile
         audio: true 
       });
+    } catch (permissionError) {
+      console.error("❌ Permission denied:", permissionError);
       
-      localStreamRef.current = stream;
+      // Show user-friendly message instead of generic error
+      if (permissionError.name === 'NotAllowedError') {
+        setStatus("❌ Camera/Mic access denied. Please allow and refresh the page.");
+        
+        // For iOS Safari, show specific instructions
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          setStatus("📱 iOS: Go to Settings > Safari > Camera & Microphone > Allow");
+        }
+        
+        return; // Exit early, don't try to connect
+      }
+      throw permissionError;
+    }
+      
+      localStreamRef.current = stream;// Success! stream contains video/audio tracks
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.srcObject = stream; // Video appears on screen
       }
 
-      const s = io(SIGNAL_SERVER_URL, { 
+      const s = io(SIGNAL_SERVER_URL, { // Continue with socket connection...
         transports: ["websocket", "polling"]
       });
 
