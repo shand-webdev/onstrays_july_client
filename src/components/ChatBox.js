@@ -84,6 +84,51 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
         <div ref={messagesEndRef} />
       </div>
 
+{/* Emoji Reactions - Add this BEFORE Message Input */}
+<div style={{
+  padding: "8px 16px",
+  borderTop: "1px solid #222222",
+  backgroundColor: "#000000",
+  display: "flex",
+  gap: "8px",
+  justifyContent: "center",
+  flexWrap: "wrap"
+}}>
+  {['😂', '❤️', '😮', '😢', '😡', '🔥'].map((emoji, index) => (
+    <button
+      key={index}
+     onClick={() => {
+  // Call onSend with the emoji directly
+  onSend(emoji);
+}}
+      style={{
+        background: "none",
+        border: "1px solid #222222",
+        borderRadius: "50%",
+        width: "36px",
+        height: "36px",
+        fontSize: "18px",
+        cursor: "pointer",
+        transition: "all 0.3s",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }}
+      onMouseOver={(e) => {
+        e.target.style.backgroundColor = "#19f0b8";
+        e.target.style.transform = "scale(1.1)";
+      }}
+      onMouseOut={(e) => {
+        e.target.style.backgroundColor = "transparent";
+        e.target.style.transform = "scale(1)";
+      }}
+    >
+      {emoji}
+    </button>
+  ))}
+</div>
+
+
       {/* Message Input - FIXED POSITION */}
       <div style={{ 
         padding: "16px", 

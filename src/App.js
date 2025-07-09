@@ -600,43 +600,45 @@ useEffect(() => {
   initConnection();
 }, [agreed, user, socket, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
-  const handleSendMessage = () => {
-    console.log("🔥 handleSendMessage called!"); // Add this first
+const handleSendMessage = (customMessage = null) => {
+  const messageText = customMessage || messageInput.trim();
+  
+  console.log("🔥 handleSendMessage called!");
   console.log("📊 State check:", { 
-    messageInput: messageInput.trim(), 
+    messageText: messageText,
     socket: !!socket, 
-    partnerId: partnerId }); // Add this debug log
+    partnerId: partnerId 
+  });
 
-  if (!messageInput.trim() || !socket || !partnerId) {
-        console.log("❌ Message blocked - missing requirements");
+  if (!messageText || !socket || !partnerId) {
+    console.log("❌ Message blocked - missing requirements");
     return;
   }
-  console.log("📤 Sending message to backend:", messageInput, "to partner:", partnerId); // Add this
+  
+  console.log("📤 Sending message to backend:", messageText, "to partner:", partnerId);
 
   // Add message to your own chat
   setMessages(prev => [...prev, { 
     sender: "me", 
-    text: messageInput,
+    text: messageText,
     timestamp: new Date()
   }]);
-
-  
-
   
   // Send message to partner via socket
   socket.emit("message", {
-    message: messageInput,
+    message: messageText,
     partnerId: partnerId
   });
 
   console.log("🔍 Socket connected?", socket.connected);
-console.log("🔍 Socket ID:", socket.id);
-    console.log("✅ Message emitted to socket"); // Add this
+  console.log("🔍 Socket ID:", socket.id);
+  console.log("✅ Message emitted to socket");
 
-  
-  setMessageInput("");
+  // Only clear input if it's a regular typed message (not emoji)
+  if (!customMessage) {
+    setMessageInput("");
+  }
 };
-
 
 
 useEffect(() => {
@@ -1069,11 +1071,13 @@ height: window.innerWidth <= 768
   flexDirection: "column"
 }}>
   <ChatBox
-    messages={messages}
-    messageInput={messageInput}
-    setMessageInput={setMessageInput}
-    onSend={handleSendMessage}
-  />
+  messages={messages}
+  messageInput={messageInput}
+  setMessageInput={setMessageInput}
+  onSend={handleSendMessage}
+  socket={socket}
+  partnerId={partnerId}
+/>
 </div>
       </div>
     </div>
