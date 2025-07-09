@@ -129,6 +129,8 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
 </div>
 
 
+
+
       {/* Message Input - FIXED POSITION */}
       <div style={{ 
         padding: "16px", 

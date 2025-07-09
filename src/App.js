@@ -30,7 +30,7 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   // Chat state
   const [messages, setMessages] = useState([]); // Array of { sender: "me"|"stranger", text: "..." }
 const [messageInput, setMessageInput] = useState("");
-
+const [showMessages, setShowMessages] = useState(false);
 
   // WebRTC state
   const pcRef = useRef(null);
@@ -1048,11 +1048,12 @@ if (authLoading) {
   display: "flex", 
   flexDirection: "column",
   height: window.innerWidth <= 768 ? "50vh" : "100%",
-  maxHeight: "100vh"
+  //maxHeight: "100vh"
+  position: "relative" // for floating elements mobil
 }}>      
 
   {/* My Video - Top Right */}
-        <div style={{ height:window.innerWidth<=768? "30vh" : "450px", padding: "5px", borderBottom: "1px solid #222222" }}>
+<div style={{ height:window.innerWidth<=768? "50vh" : "450px", padding: "5px", borderBottom: window.innerWidth<=768 ? "none" : "1px solid #222222" }}>
           <div style={{ position: "relative", height: "100%" }}>
             <video
               ref={localVideoRef}
@@ -1082,27 +1083,122 @@ if (authLoading) {
             }}>
               <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#ffffff" }}>{displayName}</span>
             </div>
+
+  {/* ADD THIS - Small Message Corner - Mobile Only */}
+            {window.innerWidth <= 768 && showMessages && (
+              <div style={{
+                position: "absolute",
+                top: "10px",
+                left: "10px",
+                width: "200px",
+                maxHeight: "150px",
+                background: "rgba(0, 0, 0, 0.8)",
+                backdropFilter: "blur(10px)",
+                borderRadius: "10px",
+                padding: "8px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                overflowY: "auto"
+              }}>
+                {/* Messages */}
+                {messages.slice(-5).map((message, index) => (
+                  <div
+                    key={index}
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center",
+                      gap: "4px"
+                    }}
+                  >
+                    <span style={{ fontSize: "12px" }}>
+                      {message.sender === 'me' ? '🟢' : '🔴'}
+                    </span>
+                    <span style={{
+                      fontSize: "11px",
+                      color: "#ffffff",
+                      wordBreak: "break-word"
+                    }}>
+                      {message.text}
+                    </span>
+                  </div>
+                ))}
+                
+                {/* Message Input */}
+                <div style={{
+                  display: "flex",
+                  gap: "4px",
+                  marginTop: "4px",
+                  background: "rgba(0, 0, 0, 0.5)",
+                  borderRadius: "12px",
+                  padding: "4px"
+                }}>
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type..."
+                    style={{
+                      flex: 1,
+                      background: "transparent",
+                      border: "none",
+                      color: "#ffffff",
+                      fontSize: "11px",
+                      outline: "none",
+                      padding: "4px 6px"
+                    }}
+                    autoFocus
+                  />
+                  
+                  <button
+                    onClick={() => handleSendMessage()}
+                    disabled={!messageInput.trim()}
+                    style={{
+                      background: messageInput.trim() 
+                        ? "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)" 
+                        : "rgba(255, 255, 255, 0.3)",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "18px",
+                      height: "18px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: messageInput.trim() ? "pointer" : "not-allowed"
+                    }}
+                  >
+                    <span style={{ color: messageInput.trim() ? "#000000" : "#ffffff", fontSize: "10px" }}>
+                      ➤
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Chat Section */}
-<div style={{ 
-height: window.innerWidth <= 768 
-    ? "calc(20vh - 80px)"                                   // Mobile: remaining space
-    : "calc(100vh - 450px - 80px)", 
-  overflow: "hidden",
-  display: "flex", 
-  flexDirection: "column"
-}}>
-  <ChatBox
-  messages={messages}
-  messageInput={messageInput}
-  setMessageInput={setMessageInput}
-  onSend={handleSendMessage}
-  socket={socket}
-  partnerId={partnerId}
-/>
-</div>
+       
+{/* Chat Section - Desktop Only */}
+{window.innerWidth > 768 && (
+  <div style={{ 
+    height: "calc(100vh - 450px - 80px)", 
+    overflow: "hidden",
+    display: "flex", 
+    flexDirection: "column"
+  }}>
+    <ChatBox
+      messages={messages}
+      messageInput={messageInput}
+      setMessageInput={setMessageInput}
+      onSend={handleSendMessage}
+    />
+  </div>
+)}
       </div>
     </div>
 
@@ -1121,7 +1217,73 @@ height: window.innerWidth <= 768
     }}>
       Role: {isPolite ? "Polite" : "Impolite"} | Partner: {partnerId || "None"}
     </div>
+
+
+  {/* Floating Bar with Emojis and Message Toggle - Mobile Only */}
+{window.innerWidth <= 768 && (
+  <div style={{
+    position: "fixed",
+    bottom: "20px",
+    left: "10px",
+    right: "10px",
+    zIndex: 1000,
+    background: "rgba(0, 0, 0, 0.7)",
+    backdropFilter: "blur(10px)",
+    border: "1px solid rgba(25, 240, 184, 0.3)",
+    borderRadius: "25px",
+    padding: "8px 12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    justifyContent: "space-between"
+  }}>
+    {/* Emoji Bar */}
+    <div style={{ display: "flex", gap: "8px" }}>
+      {['❤️', '😂', '😮', '😢', '😡', '🔥'].map((emoji, index) => (
+        <button
+          key={index}
+          onClick={() => handleSendMessage(emoji)}
+          style={{
+            background: "none",
+            border: "1px solid #222222",
+            borderRadius: "50%",
+            width: "32px",
+            height: "32px",
+            fontSize: "16px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+    
+    {/* Message Toggle Icon */}
+    <button
+      onClick={() => setShowMessages(!showMessages)}
+      style={{
+        background: showMessages ? "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)" : "rgba(255, 255, 255, 0.3)",
+        border: "none",
+        borderRadius: "50%",
+        width: "32px",
+        height: "32px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer"
+      }}
+    >
+      <span style={{ color: showMessages ? "#000000" : "#ffffff", fontSize: "16px" }}>
+        💬
+      </span>
+    </button>
   </div>
+)}
+
+  </div>  // ← Keep this closing div
 );
 }
 
