@@ -24,7 +24,6 @@ const [selectedInterest, setSelectedInterest] = useState("Any Interest");
 
 
   const interests = [
-    { labelq: 'Any Interest', emoji: '❓' },
   { label: 'Music', emoji: '🎵' },
   { label: 'Tech', emoji: '💻' },
   { label: 'AI', emoji: '🤖' },
