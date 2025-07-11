@@ -27,6 +27,11 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const [status, setStatus] = useState("Waiting for match...");
   const [socket, setSocket] = useState(null);
 
+  //new states for interest matching
+const [userInterest, setUserInterest] = useState("Any Interest");
+const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
+const [lookingFor, setLookingFor] = useState('Any');
+
   // Chat state
   const [messages, setMessages] = useState([]); // Array of { sender: "me"|"stranger", text: "..." }
 const [messageInput, setMessageInput] = useState("");
@@ -584,10 +589,24 @@ useEffect(() => {
       socketRef.current = s;
 
       s.on("connect", () => {
-        console.log("✅ Connected:", s.id);
-        setStatus("Waiting for match...");
-      });
-        s.emit("test-connection", { message: "Hello from frontend" });
+  console.log("✅ Connected:", s.id);
+  
+  // Send user preferences to backend for matching
+  const userPreferences = {
+  userId: user.uid,
+  interest: userInterest || "Any Interest", // Single interest, fallback to "Any Interest"
+  country: selectedCountry,
+  lookingFor: lookingFor,
+  joinedAt: Date.now()
+};
+  
+  console.log("📤 Sending user preferences:", userPreferences);
+  s.emit("join_queue", userPreferences);
+  
+  setStatus("Looking for match with your interests...");
+});
+
+s.emit("test-connection", { message: "Hello from frontend" });
 
 
       s.on("matched", handleMatched);
@@ -783,10 +802,14 @@ if (authLoading) {
       onAgreeAndMaybeLogin={handleAgreeAndMaybeLogin}
       user={user}
       signInWithGoogle={signInWithGoogle}
-      onStartVideoChat={() => {
-        setAgreed(true);
-        localStorage.setItem('onstrays_agreed', 'yes');
-      }}
+     onStartVideoChat={(interest, country, lookingFor) => {
+  console.log("🎯 Starting video chat with:", { interest, country, lookingFor });
+  setUserInterest(interest);
+  setSelectedCountry(country);
+  setLookingFor(lookingFor);
+  setAgreed(true);
+  localStorage.setItem('onstrays_agreed', 'yes');
+}}
     />
   );
 }

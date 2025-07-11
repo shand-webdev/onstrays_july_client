@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 
 export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoogle, onStartVideoChat }) {  const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
   const [lookingFor, setLookingFor] = useState('Any');
-  const [selectedInterests, setSelectedInterests] = useState([]);
-
+const [selectedInterest, setSelectedInterest] = useState("Any Interest");
   const countries = [
     '🇮🇳', '🇺🇸', '🇬🇧', '🇯🇵', '🇩🇪',
     '🇫🇷', '🇨🇦', '🇦🇺', '🇧🇷', '🇰🇷'
@@ -25,6 +24,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
 
   const interests = [
+    { labelq: 'Any Interest', emoji: '❓' },
   { label: 'Music', emoji: '🎵' },
   { label: 'Tech', emoji: '💻' },
   { label: 'AI', emoji: '🤖' },
@@ -41,13 +41,6 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
 
 
-  const toggleInterest = (interest) => {
-    setSelectedInterests((prev) =>
-      prev.includes(interest)
-        ? prev.filter((i) => i !== interest)
-        : [...prev, interest]
-    );
-  };
 
   const UserIcon = () => (
     <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 24, height: 24 }}>
@@ -306,15 +299,35 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                 gap: 10,
               }}
             >
-              {interests.map(({ label, emoji }) => (
+              {/* Add "Any Interest" as first option */}
+<button
+  onClick={() => setSelectedInterest("Any Interest")}
+  style={{
+    background: selectedInterest === "Any Interest" ? "#1a4a35" : "#1a1a1a",
+    color: selectedInterest === "Any Interest" ? "#00ff88" : "#fff",
+    border: selectedInterest === "Any Interest" ? "2px solid #00ff88" : "2px solid #333",
+    borderRadius: 25,
+    padding: "10px 16px",
+    margin: "0 4px 4px 0",
+    cursor: "pointer",
+    fontSize: 16,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    gridColumn: "1 / -1" // Span full width
+  }}
+>
+  <span style={{ fontSize: 18 }}>👥</span> Any Interest
+</button>
+
+{interests.map(({ label, emoji }) => (
   <button
     key={label}
-    onClick={() => toggleInterest(label)}
+    onClick={() => setSelectedInterest(label)}
     style={{
-      // your styles...
-      background: selectedInterests.includes(label) ? "#1a4a35" : "#1a1a1a",
-      color: selectedInterests.includes(label) ? "#00ff88" : "#fff",
-      border: selectedInterests.includes(label) ? "2px solid #00ff88" : "2px solid #333",
+      background: selectedInterest === label ? "#1a4a35" : "#1a1a1a",
+      color: selectedInterest === label ? "#00ff88" : "#fff",
+      border: selectedInterest === label ? "2px solid #00ff88" : "2px solid #333",
       borderRadius: 25,
       padding: "10px 16px",
       margin: "0 4px 4px 0",
@@ -328,7 +341,6 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
     <span style={{ fontSize: 18 }}>{emoji}</span> {label}
   </button>
 ))}
-
             </div>
           </div>
 
@@ -354,16 +366,16 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
   }}
   className="start-button"
   onClick={() => {
-    if (user) {
-      
-      onStartVideoChat();
-    } else {
-      if (isMobile) {
+  if (user) {
+    console.log("🚀 Passing data:", { selectedInterest, selectedCountry, lookingFor });
+    onStartVideoChat(selectedInterest, selectedCountry, lookingFor);
+  } else {
+    if (isMobile) {
       localStorage.setItem('onstrays_agreed', 'yes');
     }
-      signInWithGoogle();
-    }
-  }}
+    signInWithGoogle();
+  }
+}}
 >
   {user ? "Start Video Chat" : "Login to Video Chat"}
 </button>
