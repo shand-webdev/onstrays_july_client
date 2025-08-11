@@ -1,14 +1,38 @@
+import React, { useRef, useEffect, useState } from 'react';
 
+const TENOR_API_KEY = "AIzaSyB5aZJhIPDsM19JJMQKAqSnCtvpixD7OUE";
 
-import React, { useRef, useEffect } from 'react';
-
-
-const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
+export default function ChatBox({ messages, messageInput, setMessageInput, onSend }) {
   const messagesEndRef = useRef(null);
-  
+  const [showGif, setShowGif] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [gifResults, setGifResults] = useState([]);
+  const [gifLoading, setGifLoading] = useState(false);
+
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // --- GIPHY / TENOR --- //
+  useEffect(() => {
+    if (!showGif) return;
+    fetchGifs(""); // load trending when opened
+  }, [showGif]);
+
+  const fetchGifs = async (keyword) => {
+    setGifLoading(true);
+    try {
+      const endpoint =
+        `https://tenor.googleapis.com/v2/${keyword ? "search" : "featured"}?key=${TENOR_API_KEY}&limit=20&q=${keyword}`;
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      setGifResults(data.results || []);
+    } catch (err) {
+      console.error("Failed to load gifs", err);
+    }
+    setGifLoading(false);
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
@@ -16,67 +40,79 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
     }
   };
 
+  const gifRef = useRef(null);
+
+// close popup when clicking outside
+useEffect(() => {
+  function handleClickOutside(event) {
+    if (gifRef.current && !gifRef.current.contains(event.target)) {
+      setShowGif(false);
+    }
+  }
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, []);
+
+
   return (
-    <div style={{ 
-      display: "flex", 
-      flexDirection: "column", 
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
       height: "100%",
-      position: "relative"  // Add this
+      position: "relative"
     }}>
-      {/* Chat Header */}
-      <div style={{ 
-        padding: "12px 16px", 
-        borderBottom: "1px solid #222222", 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "8px", 
-        backgroundColor: "#181818",
-        flexShrink: 0  // Add this - prevents header from shrinking
+      {/* Header */}
+      <div style={{
+        
+        padding: "3px 8px",
+        borderBottom: "1px solid #222",
+        display: "flex",
+        background: "#000000",
+        alignItems: "center",
+        color: "#fff",
+        fontSize: "0.875rem",
+        gap: "5px",
+        fontWeight: 500
       }}>
-        <span style={{ fontSize: "16px" }}>💬</span>
-        <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#ffffff" }}>Chat</span>
+       <img src="/talk.png" alt="chat" style={{width:40, height:40}} />
+<span style={{ fontSize: "0.875rem", fontWeight: 500, color: "#ffffff" }}>
+    Chat
+  </span>
       </div>
 
-      {/* Messages - FIXED HEIGHT */}
-      <div style={{ 
-        flex: 1, 
-        overflowY: "auto", 
-        padding: "16px", 
-        backgroundColor: "#000000",
-        minHeight: 0  // Add this - allows flex item to shrink below content size
+      {/* Messages */}
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "16px",
+        background: "#000",
+        scrollbarWidth: "thin",
+        scrollbarColor: "#333 #000"
       }}>
         {messages.length === 0 ? (
-          <div style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "center", 
-            height: "100%", 
-            color: "#cccccc", 
-            fontSize: "0.875rem" 
-          }}>
-            Start a conversation...
-          </div>
+          <div style={{ color: "#777", textAlign: "center" }}>Start a conversation…</div>
         ) : (
-          messages.map((message, index) => (
-            <div
-              key={index}
-              style={{ 
-                display: "flex", 
-                justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start',
-                marginBottom: "12px"
-              }}
-            >
-              <div
-                style={{
-                  maxWidth: "240px",
-                  padding: "8px 12px",
-                  borderRadius: "25px",
-                  backgroundColor: message.sender === 'me' ? "#19f0b8" : "#222222",
-                  color: message.sender === 'me' ? "#000000" : "#ffffff",
-                  border: message.sender === 'me' ? "1px solid #00ffcb" : "1px solid #222222"
-                }}
-              >
-                <p style={{ fontSize: "0.875rem", margin: 0 }}>{message.text}</p>
+          messages.map((m, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              justifyContent: m.sender === 'me' ? "flex-end" : "flex-start",
+              marginBottom: "10px"
+            }}>
+              <div style={{
+                maxWidth: 260,
+                background: m.sender === 'me' ? "#222" : "#222",
+                color: m.sender === 'me' ? "#000" : "#fff",
+                padding: "8px 8px",
+                borderRadius: '25px',
+                fontSize: "0.875rem"
+              }}>
+                  {m.type === "gif" ? (
+  <img src={m.url} alt="gif" style={{ width:200, borderRadius:12 }} />
+) : (
+  <p>{m.text}</p>
+)}
               </div>
             </div>
           ))
@@ -84,99 +120,141 @@ const ChatBox = ({ messages, messageInput, setMessageInput, onSend }) => {
         <div ref={messagesEndRef} />
       </div>
 
-{/* Emoji Reactions - Add this BEFORE Message Input */}
-<div style={{
-  padding: "8px 16px",
+      {/* Emoji and GIF Bar */}
+      <div style={{
+         padding: "8px 16px",
   borderTop: "1px solid #222222",
   backgroundColor: "#000000",
   display: "flex",
   gap: "8px",
   justifyContent: "center",
   flexWrap: "wrap"
-}}>
-  {['😂', '❤️', '😮', '😢', '😡', '🔥'].map((emoji, index) => (
-    <button
-      key={index}
-     onClick={() => {
-  // Call onSend with the emoji directly
-  onSend(emoji);
-}}
-      style={{
-        background: "none",
-        border: "1px solid #222222",
-        borderRadius: "50%",
-        width: "36px",
-        height: "36px",
-        fontSize: "18px",
-        cursor: "pointer",
-        transition: "all 0.3s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center"
-      }}
-      onMouseOver={(e) => {
-        e.target.style.backgroundColor = "#19f0b8";
-        e.target.style.transform = "scale(1.1)";
-      }}
-      onMouseOut={(e) => {
-        e.target.style.backgroundColor = "transparent";
-        e.target.style.transform = "scale(1)";
-      }}
-    >
-      {emoji}
-    </button>
-  ))}
-</div>
+      }}>
+        <div style={{ display: "grid",
+gridTemplateColumns: "repeat(6,1fr)",
+gap: "38px",
+ }}>
+          {['😂', '❤️', '😮', '😡', '🔥'].map((e) => (
+  <button
+    onClick={() => onSend(e)}
+    key={e}
+    style={{
+      position:"relative",
+      width: 35,
+      height: 35,
+      fontSize: "1.5rem",
+      borderRadius: "50%",
+      background: "transparent",
+      color: "#fff",
+      border: "1px solid #000",
+      cursor: "pointer",
+      transition: "all 0.25s"
+    }}
+    onMouseEnter={(btn) => {
+      btn.currentTarget.style.background = "#222";
+      btn.currentTarget.style.boxShadow = "0 0 10px rgba(255,90,31,0.6)"; // orange glow
+      btn.currentTarget.style.transform = "scale(1.15)";
+    }}
+    onMouseLeave={(btn) => {
+      btn.currentTarget.style.background = "transparent";
+      btn.currentTarget.style.boxShadow = "none";
+      btn.currentTarget.style.transform = "scale(1)";
+    }}
+  >
+    {e}
+  </button>
+))}
 
+          {/* GIF Button */}
+          <button
+            onClick={() => setShowGif(!showGif)}
+            style={{ width: 32, height: 32, borderRadius: "50%", background: "transparent", border: "1px solid #333", color: "#fff" }}
+          >GIF</button>
+        </div>
+      </div>
 
+      {/* GIF PICKER PANEL */}
+      {showGif && (
+        <div 
+        ref={gifRef}
+        style={{
+          position: "absolute",
+          bottom: "65px",
+          right: "10px",
+          width: "280px",
+          maxHeight: "300px",
+          background: "#000",
+          border: "1px solid #333",
+          borderRadius: "12px",
+          padding: "8px",
+          overflowY: "auto",
+          zIndex: 10
+        }}>
+          <input
+            placeholder="Search GIF..."
+            value={searchText}
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              fetchGifs(e.target.value);
+            }}
+            style={{
+              width: "100%", marginBottom: "8px",
+              borderRadius: "8px", border: "1px solid #444",
+              background: "#111", color: "#fff", padding: "6px"
+            }}
+          />
+          {gifLoading ? <div style={{ color: "#aaa" }}>Loading…</div> : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {gifResults.map(g => (
+                <img
+                  key={g.id}
+                  onClick={() => { onSend({url:g.media_formats.tinygif.url}); setShowGif(false); }}
+                  src={g.media_formats.tinygif.url}
+                  alt=""
+                  style={{
+                    width: "80px", height: "80px", objectFit: "cover",
+                    borderRadius: "8px", cursor: "pointer"
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-
-      {/* Message Input - FIXED POSITION */}
-      <div style={{ 
-        padding: "16px", 
-        borderTop: "1px solid #222222", 
-        backgroundColor: "#000000",
-        flexShrink: 0  // Add this - prevents input from shrinking
+      {/* Input */}
+      <div style={{
+        padding: "12px",
+        borderTop: "1px solid #222",
+        background: "#000"
       }}>
         <div style={{ display: "flex", gap: "8px" }}>
           <input
+            onKeyPress={handleKeyPress}
             type="text"
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
+            placeholder="Type message…"
             style={{
-              flex: 1,
-              backgroundColor: "#181818",
-              border: "1px solid #222222",
-              borderRadius: "20px",
-              padding: "8px 16px",
-              fontSize: "0.875rem",
-              color: "#ffffff",
-              outline: "none"
+              flex: 1, padding: "10px 16px", borderRadius: 20,
+              background: "#181818", color: "#fff",
+              border: "1px solid #333"
             }}
-            onFocus={(e) => e.target.style.borderColor = "#19f0b8"}
-            onBlur={(e) => e.target.style.borderColor = "#222222"}
           />
           <button
             onClick={onSend}
             disabled={!messageInput.trim()}
             style={{
-              background: messageInput.trim() ? "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)" : "#23272b",
-              padding: "8px",
+              background: messageInput.trim() ? "linear-gradient(135deg,#19f0b8,#00ffcb)" : "#333",
+              padding: "12px",
               borderRadius: "50%",
-              border: "none",
-              cursor: messageInput.trim() ? "pointer" : "not-allowed",
-              transition: "all 0.3s",
-              boxShadow: messageInput.trim() ? "0 0 15px rgba(25, 240, 184, 0.3)" : "none"
-            }}
-          >
-            <span style={{ color: messageInput.trim() ? "#000000" : "#cccccc", fontSize: "16px" }}>➤</span>
+              border: 'none',
+              cursor: messageInput.trim() ? "pointer" : "not-allowed"
+            }}>
+            <img src="/send.png" alt="send" style={{width:20, height:20}} />
           </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default ChatBox;
+}

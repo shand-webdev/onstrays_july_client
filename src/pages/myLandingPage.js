@@ -4,8 +4,7 @@ import LegalPages from './LegalPages';
 export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoogle, onStartVideoChat }) {  
   const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
   const [lookingFor, setLookingFor] = useState('Any');
-  const [selectedInterest, setSelectedInterest] = useState("Any Interest");
-  const [showLegalPages, setShowLegalPages] = useState(false);
+const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const [showLegalPages, setShowLegalPages] = useState(false);
   const [legalPageType, setLegalPageType] = useState('privacy');
   
 
@@ -69,20 +68,26 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
     <div
       style={{
         minHeight: '100vh',
-        background: '#000',
+        background: '#FFEED2',
         color: '#fff',
       }}
     >
+      
       {/* Landing Page Section */}
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          paddingBottom: isMobile ? 60 : 0,
-          position: 'relative',
-        }}
-      >
+     <div
+  style={{
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row',
+    paddingBottom: isMobile ? 60 : 0,
+    position: 'relative',
+    maxWidth: 1280, // 🔥 Limit total width
+    margin: '0 auto',
+    width: '100%',
+    paddingLeft: 20,
+    paddingRight: 20,
+  }}
+>
         {/* Top Navigation */}
         <div
           style={{
@@ -121,11 +126,11 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
         {/* Left Side - Hero + Photo Cards */}
         <div
           style={{
-            flex: 1,
+            flex: 2,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
+            
             padding: isMobile ? 20 : 40,
             minHeight: isMobile ? '40vh' : undefined,
           }}
@@ -134,15 +139,15 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
           <div
             style={{
               textAlign: 'center',
-              marginBottom: isMobile ? 30 : 40,
+              marginBottom: isMobile ? 30 : 20,
               maxWidth: 500,
             }}
           >
             <h1
               style={{
                 fontSize: isMobile ? '2.5rem' : '3rem',
-                fontWeight: 500,
-                color: '#fff',
+                fontWeight: 700,
+                color: '#000',
                 marginBottom: 15,
                 textShadow: '0 0 20px rgb(253, 253, 253)',
                 lineHeight: 1.2,
@@ -152,8 +157,8 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             </h1>
             <p
               style={{
-                fontSize: isMobile ? '1.1rem' : '1.3rem',
-                color: '#aaa',
+                fontSize: isMobile ? '1.1rem' : '1.5rem',
+                color: '#000',
                 marginBottom: 0,
                 lineHeight: 1.5,
               }}
@@ -164,83 +169,97 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
           {/* Existing Photo Cards Container */}
           <div
-            style={{
-              position: 'relative',
-              width: isMobile ? 240 : 320,
-              height: isMobile ? 300 : 400,
-            }}
-          >
-            {[
-              "https://images.unsplash.com/photo-1649972904349-6e44c42644a7?w=400&h=600&fit=crop",
-              "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=400&h=600&fit=crop",
-              "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=600&fit=crop",
-            ].map((src, idx) => (
-              <div
-                key={src}
-                style={{
-                  position: 'absolute',
-                  width: isMobile ? 200 : 280,
-                  height: isMobile ? 260 : 360,
-                  borderRadius: 20,
-                  overflow: 'hidden',
-                  boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                  top: idx * (isMobile ? 20 : 20),
-                  left: idx * (isMobile ? 20 : 20),
-                  zIndex: 3 - idx,
-                  transform: `rotate(${idx === 0 ? -5 : idx === 1 ? 2 : -2}deg)`,
-                }}
-              >
-                <img
-                  src={src}
-                  alt={`Person ${idx + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
-            ))}
-          </div>
+  style={{
+    position: 'relative',
+width: isMobile ? '90%' : '100%',
+maxWidth: 500,
+    height: isMobile ? 350 : 450,
+    borderRadius: 25,
+    overflow: 'hidden',
+    boxShadow: '0 25px 60px rgba(255, 90, 31, 0.2), 0 0 0 1px rgba(255, 90, 31, 0.1)',
+    transform: 'rotate(-2deg)',
+    transition: 'all 0.3s ease',
+    cursor: 'pointer'
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.transform = 'rotate(0deg) scale(1.02)';
+    e.currentTarget.style.boxShadow = '0 35px 80px rgba(255, 90, 31, 0.3), 0 0 0 2px rgba(255, 90, 31, 0.2)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.transform = 'rotate(-2deg)';
+    e.currentTarget.style.boxShadow = '0 25px 60px rgba(255, 90, 31, 0.2), 0 0 0 1px rgba(255, 90, 31, 0.1)';
+  }}
+>
+  <img
+    src="https://images.unsplash.com/photo-1649972904349-6e44c42644a7?w=600&h=800&fit=crop"
+    alt="Connect with people"
+    style={{ 
+      width: '100%', 
+      height: '100%', 
+      objectFit: 'cover',
+      filter: 'brightness(1.1) contrast(1.1)'
+    }}
+  />
+  
+  {/* Overlay gradient */}
+  <div style={{
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    background: 'linear-gradient(transparent, rgba(255, 90, 31, 0.1))',
+    pointerEvents: 'none'
+  }} />
+</div>
+          
         </div>
 
         {/* Right Side - Form */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: isMobile ? 20 : 40,
-          }}
-        >
-          <div
-            style={{
-              background: '#111',
-              borderRadius: 20,
-              padding: isMobile ? '30px 20px' : 40,
-              width: '100%',
-              maxWidth: 400,
-              border: '1px solid #222',
-            }}
-          >
+        
+<div
+  style={{
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: isMobile ? 16 : 24,
+  }}
+>
+  <div
+  style={{
+    background: 'rgba(255, 255, 255, 0.3)', // glassy white
+    borderRadius: 20,
+    padding: isMobile ? '30px 20px' : 30,
+    width: '100%',
+    maxWidth: 400,
+    border: '1px solid rgba(255, 255, 255, 0.4)',
+    backdropFilter: 'blur(10px)', // glass blur effect
+    WebkitBackdropFilter: 'blur(10px)', // Safari support
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  }}
+>
             {/* Logo */}
             <h1
               style={{
-                fontFamily: 'monospace, "Orbitron"',
-                fontSize: isMobile ? '2rem' : '2.5rem',
-                fontWeight: 800,
+                
+                fontSize: isMobile ? '1rem' : '2.5rem',
+                fontWeight: "bold",
                 textAlign: 'center',
-                marginBottom: 10,
-                color: '#00ff88',
-                textShadow: '0 0 20px #00ff88, 0 0 40px #00ff88',
-                letterSpacing: 2,
+                marginBottom: 10,               
+                 color: '#CC5407',
+                textShadow: '0 0 8px rgba(255, 91, 31, 0.26), 0 0 16px rgba(255,90,31,0.4)',
+                letterSpacing: 1.5,
               }}
             >
-              ONSTRAYS
+              Onstrays
             </h1>
             <p
               style={{
                 textAlign: 'center',
-                color: '#aaa',
+                color: '#000',
                 marginBottom: 30,
-                fontSize: '1.1rem',
+                fontSize: '1rem',
               }}
             >
               Connect securely with strangers.
@@ -248,7 +267,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
             {/* Country Selection */}
             <div style={{ marginBottom: 25 }}>
-              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#fff', fontSize: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#000', fontSize: '1rem' }}>
                 Country Selection
               </label>
               <div
@@ -264,20 +283,21 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     key={country}
                     style={{
                       aspectRatio: '1',
-                      border: '2px solid #333',
-                      borderRadius: 12,
-                      background: selectedCountry === country ? '#1a4a35' : '#1a1a1a',
+                      border: '1px solid #333',
+                      borderRadius: 14,
+                      background: selectedCountry === country ? '#B15739' : '#ffffff',
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 8,
-                      color: selectedCountry === country ? '#00ff88' : '#fff',
+                     justifyContent: 'center',
+
+                      padding: 6,
+                      color: selectedCountry === country ? '#CC5407' : '#fff',
                       transition: 'all 0.3s',
-                      borderColor: selectedCountry === country ? '#00ff88' : '#333',
-                      width: 58,
-                      height: 66,
+                      borderColor: selectedCountry === country ? '#993616' : '#333',
+                      width: 50,
+                      height: 40,
                     }}
                     onClick={() => setSelectedCountry(country)}
                   >
@@ -293,7 +313,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
             {/* Looking For */}
             <div style={{ marginBottom: 25 }}>
-              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#fff', fontSize: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#000', fontSize: '1rem' }}>
                 Looking For
               </label>
               <div
@@ -309,11 +329,11 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     key={option}
                     style={{
                       flex: 1,
-                      padding: 12,
-                      border: '2px solid #333',
-                      borderRadius: 25,
-                      background: lookingFor === option ? '#1a4a35' : '#1a1a1a',
-                      color: lookingFor === option ? '#00ff88' : '#fff',
+                    padding: "6px",
+                      border: '1px solid #333',
+                      borderRadius: 10,
+                      background: lookingFor === option ? '#CC5407' : '#1a1a1a',
+                      color: lookingFor === option ? '#000' : '#fff',
                       cursor: 'pointer',
                       textAlign: 'center',
                       display: 'flex',
@@ -321,8 +341,9 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                       justifyContent: 'center',
                       gap: 8,
                       fontSize: '0.9rem',
+                      
                       transition: 'all 0.3s',
-                      borderColor: lookingFor === option ? '#00ff88' : '#333',
+                      borderColor: lookingFor === option ? '#953312' : '#333',
                     }}
                     onClick={() => setLookingFor(option)}
                   >
@@ -335,7 +356,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
 
             {/* Interests */}
             <div style={{ marginBottom: 25 }}>
-              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#fff', fontSize: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, color: '#000', fontSize: '1rem' }}>
                 Your Interests
               </label>
               <div
@@ -349,13 +370,15 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                 <button
                   onClick={() => setSelectedInterest("Any Interest")}
                   style={{
-                    background: selectedInterest === "Any Interest" ? "#1a4a35" : "#1a1a1a",
-                    color: selectedInterest === "Any Interest" ? "#00ff88" : "#fff",
-                    border: selectedInterest === "Any Interest" ? "2px solid #00ff88" : "2px solid #333",
-                    borderRadius: 25,
-                    padding: "10px 16px",
+                    background: selectedInterest === "Any Interest" ? "#CC5407" : "#1a1a1a",
+                    color: selectedInterest === "Any Interest" ? "#000" : "#fff",
+                    border: selectedInterest === "Any Interest" ? "2px solid #953312" : "2px solid #333",
+                    borderRadius: 10,
+                    padding: "8px 16px",
                     margin: "0 4px 4px 0",
                     cursor: "pointer",
+                    
+                      justifyContent: 'center',
                     fontSize: 16,
                     display: "flex",
                     alignItems: "center",
@@ -363,7 +386,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     gridColumn: "1 / -1" // Span full width
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>👥</span> Any Interest
+                  <span style={{ fontSize: 18 }}></span> Any Interest
                 </button>
 
                 {interests.map(({ label, emoji }) => (
@@ -371,13 +394,14 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     key={label}
                     onClick={() => setSelectedInterest(label)}
                     style={{
-                      background: selectedInterest === label ? "#1a4a35" : "#1a1a1a",
-                      color: selectedInterest === label ? "#00ff88" : "#fff",
-                      border: selectedInterest === label ? "2px solid #00ff88" : "2px solid #333",
-                      borderRadius: 25,
-                      padding: "10px 16px",
+                      background: selectedInterest === label ? "#CC5407" : "#1a1a1a",
+                      color: selectedInterest === label ? "#000" : "#fff",
+                      border: selectedInterest === label ? "2px solid #953312" : "2px solid #333",
+                      borderRadius: 15,
+                      padding: "8px 10px",
                       margin: "0 4px 4px 0",
                       cursor: "pointer",
+                      justifyContent: 'center',
                       fontSize: 16,
                       display: "flex",
                       alignItems: "center",
@@ -393,37 +417,55 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             {/* Start Button */}
             <button
               style={{
-                width: '100%',
-                padding: 16,
-                background: user 
-                  ? 'linear-gradient(135deg, #00ff88, #00cc6a)' 
-                  : 'linear-gradient(135deg, #ff4444, #cc2222)',
-                border: 'none',
-                borderRadius: 25,
-                color: '#000',
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                marginTop: 30,
-                transition: 'all 0.3s',
-                boxShadow: user 
-                  ? '0 10px 30px rgba(0,255,136,0.3)' 
-                  : '0 10px 30px rgba(255,68,68,0.3)',
-              }}
-              className="start-button"
-              onClick={() => {
-                if (user) {
-                  console.log("🚀 Passing data:", { selectedInterest, selectedCountry, lookingFor });
-                  onStartVideoChat(selectedInterest, selectedCountry, lookingFor);
-                } else {
-                  if (isMobile) {
-                    localStorage.setItem('onstrays_agreed', 'yes');
-                  }
-                  signInWithGoogle();
-                }
-              }}
-            >
+    width: '100%',
+    padding: '14px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+
+    background: 'linear-gradient(135deg, #a3310d, #ff5a1f)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '999px',
+
+    color: '#ffffff',
+    fontSize: '1.05rem',
+    fontWeight: 700,
+    textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+
+     cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(255, 90, 31, 0.2)',
+
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+
+    transition: 'all 0.3s ease-in-out'
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.boxShadow = '0 0 20px 6px rgba(248, 120, 74, 0.37)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.boxShadow = '0 4px 10px rgba(255, 90, 31, 0.2)';
+  }}
+  onClick={() => {
+    if (user) {
+      onStartVideoChat(selectedInterest, selectedCountry, lookingFor);
+    } else {
+      if (isMobile) {
+        localStorage.setItem('onstrays_agreed', 'yes');
+      }
+      signInWithGoogle();
+    }
+  }}
+>
+               <img 
+    src="/video.svg" 
+    color=""
+    alt="Video" 
+    style={{ width: '22px', height: '22px' }}
+  />
               {user ? "Start Video Chat" : "Login to Video Chat"}
+              
             </button>
           </div>
         </div>
@@ -434,8 +476,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
         style={{
           width: '100%',
           padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
-          background: '#000',
-          borderTop: '1px solid #222',
+          background: '#FFEED2',
         }}
       >
         <div
@@ -445,17 +486,19 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             textAlign: 'center',
           }}
         >
-          <h2
-            style={{
-              fontSize: isMobile ? '2rem' : '2.5rem',
-              fontWeight: 700,
-              color: '#00ff88',
-              marginBottom: isMobile ? '40px' : '60px',
-              textShadow: '0 0 20px #00ff88',
-            }}
-          >
-            How It Works
-          </h2>
+        <h2
+  style={{
+    fontSize: isMobile ? '2rem' : '2.5rem',
+    fontWeight: 600,
+    color: '#CC5407',
+    marginBottom: isMobile ? '32px' : '48px',
+//textShadow: '0 0 20px #a3310d',    opacity: 0.9,
+    letterSpacing: '0.5px'
+  }}
+>
+  How It Works
+</h2>
+
           
           <div
             style={{
@@ -470,12 +513,12 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   width: isMobile ? '120px' : '150px',
                   height: isMobile ? '120px' : '150px',
                   margin: '0 auto 20px auto',
-                  background: '#111',
+                  background: 'rgba(255, 255, 255, 0.3)',
                   borderRadius: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                 }}
               >
                 <span style={{ fontSize: '3rem' }}>🎯</span>
@@ -483,16 +526,16 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
               >
-                Choose Your Interest
+                Choose your interest
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
@@ -508,12 +551,12 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   width: isMobile ? '120px' : '150px',
                   height: isMobile ? '120px' : '150px',
                   margin: '0 auto 20px auto',
-                  background: '#111',
+                  background: 'rgba(255, 255, 255, 0.3)',
                   borderRadius: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                 }}
               >
                 <span style={{ fontSize: '3rem' }}>🤝</span>
@@ -521,7 +564,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
@@ -530,13 +573,13 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
                 }}
               >
-                We connect you with someone who shares your interests
+                We connect you with someone who shares similar interests
               </p>
             </div>
 
@@ -546,35 +589,35 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   width: isMobile ? '120px' : '150px',
                   height: isMobile ? '120px' : '150px',
                   margin: '0 auto 20px auto',
-                  background: '#111',
+                  background: 'rgba(255, 255, 255, 0.3)',
                   borderRadius: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                 }}
               >
-                <span style={{ fontSize: '3rem' }}>💬</span>
+                <span style={{ fontSize: '3rem' }}>🪙</span>
               </div>
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
               >
-                Start Meaningful Conversations
+                Tip the partner
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
                 }}
               >
-                Validate ideas, learn new things, grow together
+                Validate ideas, learn new things, grow together and tip only if you feel valued.
               </p>
             </div>
           </div>
@@ -586,8 +629,8 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
         style={{
           width: '100%',
           padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
-          background: '#000',
-          borderTop: '1px solid #222',
+          background: '#FFEED2',
+          //borderTop: '1px solid #222',
         }}
       >
         <div
@@ -600,13 +643,13 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
           <h2
             style={{
               fontSize: isMobile ? '2rem' : '2.5rem',
-              fontWeight: 700,
-              color: '#00ff88',
+              fontWeight: 600,
+    color: '#CC5407',
               marginBottom: isMobile ? '40px' : '60px',
-              textShadow: '0 0 20px #00ff88',
-            }}
+              //textShadow: '0 0 20px #a3310d',    
+                    }}
           >
-            Why Choose OnStrays
+            Why Onstrays
           </h2>
           
           <div
@@ -628,7 +671,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                   overflow: 'hidden',
                 }}
               >
@@ -645,16 +688,16 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
               >
-                Find Your Community
+                Find similar interest people
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
@@ -676,7 +719,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                   overflow: 'hidden',
                 }}
               >
@@ -693,7 +736,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
@@ -702,7 +745,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
@@ -724,7 +767,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '2px solid #333',
+                  border: '1px solid #333',
                   overflow: 'hidden',
                 }}
               >
@@ -741,7 +784,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               <h3
                 style={{
                   fontSize: isMobile ? '1.3rem' : '1.5rem',
-                  color: '#00ff88',
+                  color: '#000',
                   marginBottom: '10px',
                   fontWeight: 600,
                 }}
@@ -750,7 +793,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
               </h3>
               <p
                 style={{
-                  color: '#aaa',
+                  color: '#000',
                   fontSize: isMobile ? '0.9rem' : '1rem',
                   lineHeight: 1.5,
                   margin: 0,
@@ -768,8 +811,9 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
         style={{
           width: '100%',
           padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
-          background: '#000',
-          borderTop: '1px solid #222',
+         background: '#FFEED2',
+
+          
         }}
       >
         <div
@@ -783,9 +827,9 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             style={{
               fontSize: isMobile ? '2rem' : '2.5rem',
               fontWeight: 700,
-              color: '#00ff88',
+    color: '#CC5407',
               marginBottom: isMobile ? '30px' : '40px',
-              textShadow: '0 0 20px #00ff88',
+              //textShadow: '0 0 20px #a3310d',
             }}
           >
             Community Guidelines
@@ -829,7 +873,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     fontWeight: 600,
                   }}
                 >
-                  ✅ Do's
+                   Do's
                 </h4>
                 <ul style={{ paddingLeft: '20px', lineHeight: 1.6, color: '#ccc' }}>
                   <li style={{ marginBottom: '8px' }}>Be respectful and kind to everyone</li>
@@ -849,7 +893,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
                     fontWeight: 600,
                   }}
                 >
-                  ❌ Don'ts
+                  Dont's
                 </h4>
                 <ul style={{ paddingLeft: '20px', lineHeight: 1.6, color: '#ccc' }}>
                   <li style={{ marginBottom: '8px' }}>No spam or promotional content</li>
@@ -893,7 +937,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
           
           <p
             style={{
-              color: '#666',
+              color: '#000',
               fontSize: isMobile ? '0.8rem' : '0.9rem',
               textAlign: 'center',
               lineHeight: 1.5,
@@ -901,7 +945,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
           >
             For detailed information, read our{' '}
             <span 
-              style={{ color: '#00ff88', cursor: 'pointer' }}
+              style={{ color: '#a3310d', cursor: 'pointer' }}
               onClick={() => {
                 setLegalPageType('privacy');
                 setShowLegalPages(true);
@@ -911,7 +955,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             </span>
             {' '}and{' '}
             <span 
-              style={{ color: '#00ff88', cursor: 'pointer' }}
+              style={{ color: '#a3310d', cursor: 'pointer' }}
               onClick={() => {
                 setLegalPageType('terms');
                 setShowLegalPages(true);
@@ -922,7 +966,7 @@ export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoog
             .
             <br />
             Questions? <span 
-              style={{ color: '#00ff88', cursor: 'pointer' }}
+              style={{ color: '#a3310d', cursor: 'pointer' }}
               onClick={() => {
                 setLegalPageType('contact');
                 setShowLegalPages(true);

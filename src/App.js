@@ -5,9 +5,13 @@ import UserAccount from "./components/UserAccount.js";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider } from './firebase-config';
 import ChatBox from "./components/ChatBox";
+import TipButton from "./components/TipButton";
+import TipsDisplay from "./components/TipsDisplay"; // ADD THIS LINE
+import { motion, AnimatePresence } from 'framer-motion';
+import { getUserTips, initializeUser, saveTipSession, updateUserTips, reportUser } from './services/firebaseService';
 
 
-const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";//"http://localhost:3001"//
+const SIGNAL_SERVER_URL = "http://localhost:3002";//"https://onstrays-july.onrender.com";
 
 function App() {
   
@@ -21,6 +25,10 @@ const [displayName, setDisplayName] = useState("Stranger");
 
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+
+
+
+
   // Video chat state & refs
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -32,10 +40,13 @@ const [userInterest, setUserInterest] = useState("Any Interest");
 const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
 const [lookingFor, setLookingFor] = useState('Any');
 
+
+
   // Chat state
   const [messages, setMessages] = useState([]); // Array of { sender: "me"|"stranger", text: "..." }
 const [messageInput, setMessageInput] = useState("");
 const [showMessages, setShowMessages] = useState(false);
+
 
   // WebRTC state
   const pcRef = useRef(null);
@@ -64,35 +75,123 @@ const [showMessages, setShowMessages] = useState(false);
   const socketRef = useRef(null);
 
  
+// Chat duration and timing
+const [chatDuration, setChatDuration] = useState(0);
+const [chatStartTime, setChatStartTime] = useState(null);
+
+
+//report
+const [hasReportedPartner, setHasReportedPartner] = useState(false);
+const [showReportConfirm, setShowReportConfirm] = useState(false);
+const [partnerUserId, setPartnerUserId] = useState(null); // This is crucial!
 
 
 
 
+//like system
 
+const [myTips, setMyTips] = useState(0);
+const [partnerTips, setPartnerTips] = useState(0);
+const [justReceivedTip, setJustReceivedTip] = useState(false);
+const [sessionTipsReceived, setSessionTipsReceived] = useState(0);
+
+
+const [currentlyTippedUsers, setCurrentlyTippedUsers] = useState(new Set());
+const [myTipsReceived, setMyTipsReceived] = useState(0);
+const [partnerTipsReceived, setPartnerTipsReceived] = useState(0);
+
+const [myLifetimeTips, setMyLifetimeTips] = useState(0);
+const [partnerLifetimeTips, setPartnerLifetimeTips] = useState(0);
+
+// Refs for duration tracking
+const chatDurationInterval = useRef(null);
+
+const lastReportTime = useRef(0);
+
+
+
+const resetTipsState = useCallback(() => {
+  setCurrentlyTippedUsers(new Set());
+  setPartnerTipsReceived(0);
+  setJustReceivedTip(false);
+  
+  console.log("🔄 Session state reset for new chat");
+}, []);
+
+// Add this after resetTipsState
+const startChatDurationTracking = useCallback(() => {
+  const startTime = Date.now();
+  setChatStartTime(startTime);
+  setChatDuration(0);
+
+  // Clear any existing interval
+  if (chatDurationInterval.current) {
+    clearInterval(chatDurationInterval.current);
+  }
+
+  // Start new interval
+  chatDurationInterval.current = setInterval(() => {
+    const currentDuration = Math.floor((Date.now() - startTime) / 1000);
+    setChatDuration(currentDuration);
+  }, 1000);
+
+  console.log("⏱️ Started chat duration tracking");
+}, []);
+
+// Add this after startChatDurationTracking
+const stopChatDurationTracking = useCallback(() => {
+  if (chatDurationInterval.current) {
+    clearInterval(chatDurationInterval.current);
+    chatDurationInterval.current = null;
+  }
+  
+  setChatDuration(0);
+  setChatStartTime(null);
+  
+  console.log("⏹️ Stopped chat duration tracking");
+}, []);
 
   // AUTH STATE LISTENER
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("🔄 Auth state changed:", currentUser ? currentUser.displayName : "No user");
-      setUser(currentUser);
-      setAuthLoading(false);
-      if (!currentUser) {
-        setAgreed(false); // Reset to landing page on sign out
+ useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    console.log("🔄 Auth state changed:", currentUser ? currentUser.displayName : "No user");
+    setUser(currentUser);
+    setAuthLoading(false);
+    
+    if (!currentUser) {
+      setAgreed(false);
+    } else {
+      // ADD THIS - Load tips when user is detected (whether new login or already logged in)
+      try {
+        console.log('🔍 Loading tips for existing user:', currentUser.uid);
+        await initializeUser(currentUser.uid, {
+          email: currentUser.email,
+          displayName: currentUser.displayName
+        });
+        
+        const userTips = await getUserTips(currentUser.uid);
+        setMyTipsReceived(userTips.totalTipsReceived);
+        setMyLifetimeTips(userTips.totalTipsReceived);
+        
+        console.log('✅ Tips loaded for existing user:', userTips);
+      } catch (error) {
+        console.error('❌ Error loading tips for existing user:', error);
       }
-    });
+    }
+  });
 
-    return () => unsubscribe();
-  }, []);
-
+  return () => unsubscribe();
+}, []);
 
   // [C] Login function
-  const signInWithGoogle = async () => {
+ const signInWithGoogle = async () => {
   setAuthLoading(true);
   try {
     const result = await signInWithPopup(auth, googleProvider);
     setUser(result.user);
     setDisplayName("Stranger");
-    //setAgreed(true);
+
+   
   } catch (error) {
     console.error("❌ Google sign-in error:", error);
     if (error.code === 'auth/popup-closed-by-user') {
@@ -105,6 +204,42 @@ const [showMessages, setShowMessages] = useState(false);
   }
 };
 
+const saveSessionToDatabase = useCallback(async () => {
+  console.log('🔍 SAVE DEBUG - Current state before save:', {
+    user: user?.uid,
+    partnerId: partnerId,
+    currentlyTippedUsers: Array.from(currentlyTippedUsers),
+    sessionTipsReceived: sessionTipsReceived,
+    myTipsReceived: myTipsReceived,
+    myLifetimeTips: myLifetimeTips
+  });
+
+  if (!user || !partnerId) {
+    console.log('❌ Missing user or partnerId, skipping save');
+    return;
+  }
+  
+  const tipsGiven = currentlyTippedUsers.has(partnerId) ? 1 : 0;
+const tipsReceived = 0; // Or remove this function entirely
+  
+  const sessionData = {
+    userId: user.uid,
+    partnerId: partnerId,
+    tipsGiven: tipsGiven,
+    tipsReceived: tipsReceived,
+    chatDuration: chatDuration,
+    timestamp: Date.now()
+  };
+  
+  console.log('💾 EXACT DATA BEING SAVED:', sessionData);
+  
+  try {
+    await saveTipSession(sessionData);
+    console.log('✅ Session saved to database');
+  } catch (error) {
+    console.error('❌ Failed to save session:', error);
+  }
+},  [user, partnerId, currentlyTippedUsers, sessionTipsReceived, chatDuration]);
 
 
 
@@ -351,36 +486,87 @@ const [showMessages, setShowMessages] = useState(false);
     return pc;
   }, [partnerId, isReconnecting, connectionLost, reconnectionTimer, showOfflineWarning, startReconnectionCountdown, clearReconnectionTimers]);
 
-  // Clean up peer connection
-  const cleanupPeerConnection = useCallback(() => {
-    clearReconnectionTimers();
-    setMessages([]);
-    
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
-    }
-    setPartnerId(null);
-    makingOfferRef.current = false;
-    ignoreOfferRef.current = false;
-    isSettingRemoteAnswerPendingRef.current = false;
-  }, [clearReconnectionTimers]);
 
- 
-  // Handle next button click
+   // Clean up peer connection
+ const cleanupPeerConnection = useCallback(() => {
+  clearReconnectionTimers();
+  setMessages([]);
+  
+  // Remove all session save logic - no longer needed!
+  
+  resetTipsState();
+  stopChatDurationTracking();
+  
+  if (pcRef.current) {
+    pcRef.current.close();
+    pcRef.current = null;
+  }
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
+  setPartnerId(null);
+  makingOfferRef.current = false;
+  ignoreOfferRef.current = false;
+  isSettingRemoteAnswerPendingRef.current = false;
+}, [clearReconnectionTimers, stopChatDurationTracking, resetTipsState]); 
+
+   // Handle next button click
   const handleNext = useCallback(() => {
     if (socket) {
       console.log("Requesting next match");
       socket.emit("next");
       setStatus("Finding new match...");
       cleanupPeerConnection();
+      
       setMessages([]); // Clear messages
 
     }
   }, [socket, cleanupPeerConnection]);
+
+
+  const handleReportUser = useCallback(async () => {
+  if (!partnerUserId || !user) {
+    console.log("❌ Cannot report: missing data");
+    return;
+  }
+
+  // Prevent spam reporting
+  const now = Date.now();
+  if (now - (lastReportTime.current || 0) < 2000) {
+    console.log("⏳ Report cooldown - please wait");
+    return;
+  }
+  lastReportTime.current = now;
+
+  try {
+    console.log("🚨 Reporting user:", partnerUserId);
+    
+    // Write to Firebase immediately
+    await reportUser(partnerUserId);
+    
+    // Set reported state
+    setHasReportedPartner(true);
+    
+    // Hide confirmation popup
+    setShowReportConfirm(false);
+    
+    console.log("✅ User reported successfully");
+    
+    // End chat immediately and go to next
+    setTimeout(() => {
+      handleNext();
+    }, 500);
+    
+  } catch (error) {
+    console.error("❌ Error reporting user:", error);
+    alert("Failed to report user. Please try again.");
+  }
+}, [partnerUserId, user, handleNext]);
+
+
+
+ 
+ 
 
   // Handle incoming offer
   const handleOffer = useCallback(async (data) => {
@@ -464,7 +650,7 @@ const [showMessages, setShowMessages] = useState(false);
 
   // Handle matched event
   const handleMatched = useCallback(async (data) => {
-    console.log("🎯 Matched with:", data.partnerId, "Role:", data.role);
+  console.log("🎯 Matched with:", data.partnerId, "UserId:", data.partnerUserId);
 
     if (connectionTimerRef.current) {
       clearTimeout(connectionTimerRef.current);
@@ -472,8 +658,26 @@ const [showMessages, setShowMessages] = useState(false);
     }
 
     setPartnerId(data.partnerId);
+    setPartnerUserId(data.partnerUserId);
     setIsPolite(data.role === "polite");
     setStatus(`Connecting to ${data.partnerId}...`);
+
+     // Load partner's lifetime tips
+  if (data.partnerUserId) {
+    try {
+      const partnerTips = await getUserTips(data.partnerUserId);
+      setPartnerLifetimeTips(partnerTips.totalTipsReceived);
+      console.log("✅ Partner lifetime tips loaded:", partnerTips.totalTipsReceived);
+    } catch (error) {
+      console.log("❌ Could not load partner tips, using 0");
+      setPartnerLifetimeTips(0);
+    }
+  }
+    
+
+
+// Reset tips state for new chat
+resetTipsState();
 
     const timer = setTimeout(() => {
       console.log("⏰ Connection timeout - auto skipping");
@@ -495,6 +699,10 @@ const [showMessages, setShowMessages] = useState(false);
     
     connectionTimerRef.current = timer;
     console.log("🔍 TIMER SET:", !!connectionTimerRef.current, "Timer ID:", timer); 
+
+// Start tracking chat duration for tip unlock
+startChatDurationTracking();
+
 
     const pc = await createPeerConnection();
     
@@ -519,9 +727,10 @@ const [showMessages, setShowMessages] = useState(false);
         }
       }, 1000);
     }
-  }, [createPeerConnection]);
+  }, [createPeerConnection, resetTipsState, startChatDurationTracking]);
 
   // Handle partner disconnected
+
   const handlePartnerDisconnected = useCallback(() => {
     console.log("Partner disconnected");
     setStatus("Partner disconnected. Finding new match...");
@@ -619,20 +828,46 @@ s.emit("test-connection", { message: "Hello from frontend" });
       s.on("answer", handleAnswer);
       s.on("ice-candidate", handleIceCandidate);
 
+         // Listen for tip toggle events from partner
+s.on("tip_toggle", (data) => {
+  console.log("💖 Received tip event:", data);
+  
+  const { fromUserId, action } = data;
+  
+   if (action === "tip") {
+    // Just update my lifetime tips display (partner will handle their own Firebase writes)
+    setMyLifetimeTips(prev => prev + 1);
+    setJustReceivedTip(true);
+    setTimeout(() => setJustReceivedTip(false), 2000);
+    console.log("✅ My tips display updated");
+  } else if (action === "untip") {
+    setMyLifetimeTips(prev => Math.max(0, prev - 1));
+    setJustReceivedTip(false);
+    console.log("✅ My tips display updated");
+  }
+});
+
       s.on("test-response", (data) => {
   console.log("🧪 FRONTEND: Test response received:", data);
 });
       
-      // Move this inside the try block:
-      s.on("message", (data) => {
-          console.log("📨 RECEIVED MESSAGE EVENT:", data); // Add this
-  console.log("📨 Message content:", data.message);
-        setMessages(prev => [...prev, { 
-          sender: "stranger", 
-          text: data.message,
-          timestamp: new Date()
-        }]);
-      });
+     
+     s.on("message", (data) => {
+  console.log("📨 RECEIVED MESSAGE EVENT:", data);
+
+  const formatted = data.type === "gif"
+    ? { sender: "stranger", type: "gif", url: data.url, timestamp: new Date() }
+    : { sender: "stranger", type: "text", text: data.text, timestamp: new Date() };
+
+  setMessages(prev => [...prev, formatted]);
+});
+
+
+// Listen for connection errors
+s.on("tip_error", (data) => {
+  console.error("❌ Tip error from server:", data);
+  // Handle tip errors if needed
+});
 
     } catch (error) {
       console.error("Error initializing:", error);
@@ -644,43 +879,46 @@ s.emit("test-connection", { message: "Hello from frontend" });
 }, [agreed, user, socket, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
 const handleSendMessage = (customMessage = null) => {
-  const messageText = customMessage || messageInput.trim();
-  
-  console.log("🔥 handleSendMessage called!");
-  console.log("📊 State check:", { 
-    messageText: messageText,
-    socket: !!socket, 
-    partnerId: partnerId 
-  });
-
-  if (!messageText || !socket || !partnerId) {
-    console.log("❌ Message blocked - missing requirements");
+  // More specific GIF detection
+  if (customMessage && typeof customMessage === "object" && customMessage.url) {
+    // GIF path
+    const gifObject = {
+      sender: "me",
+      type: "gif", 
+      url: customMessage.url,
+      timestamp: new Date(),
+    };
+    
+    setMessages((prev) => [...prev, gifObject]);
+    
+    socket.emit("message", {
+      type: "gif",
+      url: customMessage.url,
+      partnerId,
+    });
     return;
   }
-  
-  console.log("📤 Sending message to backend:", messageText, "to partner:", partnerId);
 
-  // Add message to your own chat
-  setMessages(prev => [...prev, { 
-    sender: "me", 
+  // TEXT path (includes emojis and regular text)
+  const messageText = customMessage || messageInput.trim();
+  if (!messageText || !socket || !partnerId) return;
+
+  const textObject = {
+    sender: "me",
+    type: "text", 
     text: messageText,
     timestamp: new Date()
-  }]);
-  
-  // Send message to partner via socket
+  };
+
+  setMessages((prev) => [...prev, textObject]);
+
   socket.emit("message", {
-    message: messageText,
-    partnerId: partnerId
+    type: "text",
+    text: messageText,
+    partnerId,
   });
 
-  console.log("🔍 Socket connected?", socket.connected);
-  console.log("🔍 Socket ID:", socket.id);
-  console.log("✅ Message emitted to socket");
-
-  // Only clear input if it's a regular typed message (not emoji)
-  if (!customMessage) {
-    setMessageInput("");
-  }
+  if (!customMessage) setMessageInput("");
 };
 
 
@@ -718,6 +956,19 @@ useEffect(() => {
     }
   };
 }, [agreed]); // Watches 'agreed' - runs cleanup when it changes
+
+
+// Add this debug useEffect in App.js
+useEffect(() => {
+  console.log('🔍 TIP STATE DEBUG:', {
+    myTipsReceived: myTipsReceived,
+    myLifetimeTips: myLifetimeTips,
+    sessionTipsReceived: sessionTipsReceived,
+    partnerLifetimeTips: partnerLifetimeTips,
+    currentlyTippedUsers: Array.from(currentlyTippedUsers)
+  });
+}, [myTipsReceived, myLifetimeTips, sessionTipsReceived, partnerLifetimeTips, currentlyTippedUsers]);
+
 
   // Monitor internet connection
   useEffect(() => {
@@ -764,18 +1015,111 @@ useEffect(() => {
 };
 
 
+// Real-time Firebase tip toggle - Replace your existing handleTipToggle
+const handleTipToggle = useCallback(async (newTipState) => {
+  if (!partnerId || !user || !partnerUserId) {
+    console.log("❌ Cannot tip: missing data", { partnerId, user: !!user, partnerUserId });
+    return;
+  }
+
+  // Prevent rapid spam clicking
+  const now = Date.now();
+  if (now - (lastTipTime.current || 0) < 5000) {
+    console.log("⏳ Tip cooldown - please wait");
+    return;
+  }
+  lastTipTime.current = now;
+
+  console.log(`🌟 ${newTipState ? 'Giving' : 'Removing'} tip to partner:`, partnerUserId);
+
+  try {
+    // 1. Update local UI state immediately (optimistic update)
+    setCurrentlyTippedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newTipState) {
+        newSet.add(partnerId);
+      } else {
+        newSet.delete(partnerId);
+      }
+      return newSet;
+    });
+
+    // 2. Update partner's visible tip count (optimistic)
+    setPartnerLifetimeTips(prev => newTipState ? prev + 1 : prev - 1);
+
+    // 3. Write to Firebase immediately (both users)
+    const writePromises = [];
+    
+    if (newTipState) {
+      // Giving a tip
+      writePromises.push(
+        updateUserTips(partnerUserId, { tipsReceivedChange: 1 }),
+        updateUserTips(user.uid, { tipsGivenChange: 1 })
+      );
+      console.log("📈 Writing to Firebase: +1 received for partner, +1 given for me");
+    } else {
+      // Removing a tip
+      writePromises.push(
+        updateUserTips(partnerUserId, { tipsReceivedChange: -1 }),
+        updateUserTips(user.uid, { tipsGivenChange: -1 })
+      );
+      console.log("📉 Writing to Firebase: -1 received for partner, -1 given for me");
+    }
+
+    // Execute Firebase writes
+    await Promise.all(writePromises);
+    console.log("✅ Firebase writes completed successfully");
+
+    // 4. Emit socket event to partner (for real-time UI updates)
+    if (socketRef.current) {
+      socketRef.current.emit("tip_toggle", {
+        targetUserId: partnerId,
+        fromUserId: user.uid,
+        action: newTipState ? "tip" : "untip",
+        timestamp: Date.now()
+      });
+      console.log("📤 Socket event sent to partner");
+    }
+
+    console.log(`✅ Tip ${newTipState ? 'given' : 'removed'} successfully`);
+
+  } catch (error) {
+    console.error("❌ Error in tip toggle:", error);
+    
+    // Rollback optimistic updates on error
+    setCurrentlyTippedUsers(prev => {
+      const rollbackSet = new Set(prev);
+      if (newTipState) {
+        rollbackSet.delete(partnerId); // Undo the add
+      } else {
+        rollbackSet.add(partnerId); // Undo the remove
+      }
+      return rollbackSet;
+    });
+    
+    setPartnerLifetimeTips(prev => newTipState ? prev - 1 : prev + 1);
+    
+    // Show error to user
+    alert("Failed to update tip. Please try again.");
+  }
+}, [partnerId, user, partnerUserId]);
+
+// Add this ref for tip cooldown
+const lastTipTime = useRef(0);
+
   // CONDITIONAL RENDERING
 if (authLoading) {
       return (
       <div style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontSize: "1.5rem"
-      }}>
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #ffe5b4 0%, #ffb347 40%, #ff6f3c 70%, #000000 100%)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#000",
+      fontSize: "1.5rem",
+      transition: "background 0.8s ease-in-out"
+    }}>
         <div style={{
           display: "flex",
           flexDirection: "column",
@@ -806,7 +1150,6 @@ if (authLoading) {
   console.log("🎯 Starting video chat with:", { interest, country, lookingFor });
   setUserInterest(interest);
   setSelectedCountry(country);
-  setLookingFor(lookingFor);
   setAgreed(true);
   localStorage.setItem('onstrays_agreed', 'yes');
 }}
@@ -860,17 +1203,19 @@ if (authLoading) {
     `}</style>
     
     {/* Navigation Bar */}
-    <nav style={{ backgroundColor: "#181818", borderBottom: "1px solid #222222", padding: "16px 24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 
-  style={{ 
-    fontSize: "1.5rem", 
-    fontWeight: "bold", 
-    background: "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)", 
-    WebkitBackgroundClip: "text", 
-    WebkitTextFillColor: "transparent",
-    cursor: "pointer"
-  }}
+    
+    {window.innerWidth > 768 && (
+  <nav style={{ backgroundColor: "#1C1315", borderBottom: "1px solid #222222", padding: "10px 24px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <h1 
+        style={{ 
+          fontSize: "2rem", 
+          fontWeight: "bold", 
+          background: "linear-gradient(135deg, #FF8C00 0%, #FF5A1F 100%)", 
+          WebkitBackgroundClip: "text", 
+          WebkitTextFillColor: "transparent",
+          cursor: "pointer"
+        }}
 
   onClick={() => {
   console.log("🏠 Going back to landing page...");
@@ -909,7 +1254,8 @@ if (authLoading) {
   Onstrays
 </h1>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-<div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "100px" }}>            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: isOnline ? "#19f0b8" : "#ef4444" }}></div>
+<div style={{ display: "flex", alignItems: "center", gap: "8px", marginRight: "100px" }}>         
+     <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: isOnline ? "#19f0b8" : "#ef4444" }}></div>
             <span style={{ fontSize: "0.875rem", color: "#cccccc" }}>
               {showOfflineWarning ? "Offline" :
                connectionLost ? "Connection Lost" : 
@@ -925,13 +1271,14 @@ if (authLoading) {
         </div>
       </div>
     </nav>
+    )}
 
     {/* Main Content */}
     <div style={{ flex: 1, display: "flex", flexDirection: window.innerWidth <= 768 ? "column" : "row" ,overflow: "hidden" }}>
 
       {/* Left Side - Stranger Video */}
-      <div style={{ width: window.innerWidth <= 768 ? "100%" : "60%", backgroundColor: "#181818", position: "relative" }}>
-        <div style={{ height: window.innerWidth <= 768 ? "50vh" : "100%",  display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ width: window.innerWidth <= 768 ? "100%" : "60%", backgroundColor: "#0A0A0A", position: "relative" }}>
+        <div style={{ height: window.innerWidth <= 768 ? "64vh" : "100%",  display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div style={{ position: "relative", width: "100%", height: "100%", maxWidth: "1024px", maxHeight: "100%" }}>
             <video
               ref={remoteVideoRef}
@@ -942,11 +1289,21 @@ if (authLoading) {
                 height: "100%", 
                 objectFit: "cover", 
                 borderRadius: "8px", 
-                backgroundColor: "#222222",
+                backgroundColor: "#0A0A0A",
                 maxHeight: "calc(100vh - 80px)"
               }}
             />
+
             
+            
+<TipButton 
+  onTipToggle={handleTipToggle}
+  disabled={!socket || !partnerId}
+  chatDuration={chatDuration}
+  isVisible={!!partnerId}
+  isTipped={currentlyTippedUsers.has(partnerId)}
+/>
+
             {/* Status Overlay on Stranger Video */}
             {(!partnerId || !remoteVideoRef.current?.srcObject) && (
               <div style={{
@@ -985,81 +1342,154 @@ if (authLoading) {
             )}
             
             {/* Report Button */}
-            <button style={{ 
-              position: "absolute", 
-              top: "16px", 
-              left: "16px", 
-              backgroundColor: "#ef4444", 
-              padding: "8px", 
-              borderRadius: "20%", 
-              border: "none", 
-              cursor: "pointer",
-              transition: "background-color 0.3s",
-              boxShadow: "0 0 15px rgba(53, 0, 211, 0.3)"
-            }}
-            onMouseOver={(e) => e.target.style.backgroundColor = "#dc2626"}
-            onMouseOut={(e) => e.target.style.backgroundColor = "#ef4444"}>
-              <span style={{ color: "#fff", fontSize: "16px" }}>⚠</span>
-            </button>
+            <button 
+  onClick={() => setShowReportConfirm(true)}
+  disabled={!partnerId}
+  title="Report user"
+  style={{ 
+    position: "absolute", 
+    bottom: window.innerWidth <= 768 ? "5px" : "70px", 
+   
+    left: window.innerWidth <= 768 ? "10px" : "20px",
+    backgroundColor: "#ef4444", 
+    color: "#ffffff",
+    border: "none", 
+    borderRadius: "12px", 
+    padding: "10px 16px", 
+    fontSize: "0.875rem",
+    fontWeight: "500",
+    cursor: partnerId ? "pointer" : "not-allowed",
+    opacity: partnerId ? 1 : 0.5,
+    transition: "all 0.3s ease",
+    boxShadow: partnerId ? "0 0 10px rgba(239, 68, 68, 0.5)" : "none"
+  }}
+  onMouseOver={(e) => {
+    if (partnerId) e.target.style.backgroundColor = "#dc2626";
+  }}
+  onMouseOut={(e) => {
+    if (partnerId) e.target.style.backgroundColor = "#ef4444";
+  }}
+>
+  Report
+</button>
+
             
+<TipsDisplay 
+ tipsCount={partnerLifetimeTips} // CHANGE from partnerTipsReceived
+  justReceived={false}
+  isVisible={!!partnerId}
+  position="stranger"
+/>
+{/* Report Confirmation Popup */}
+{showReportConfirm && (
+  <div style={{
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+  }}>
+    <div style={{
+      backgroundColor: "#222",
+      padding: "30px",
+      borderRadius: "15px",
+      border: "1px solid #ef4444",
+      textAlign: "center",
+      maxWidth: "300px"
+    }}>
+      <h3 style={{ color: "#fff", marginBottom: "20px" }}>Report this user?</h3>
+      <div style={{ display: "flex", gap: "15px", justifyContent: "center" }}>
+        <button
+          onClick={handleReportUser}
+          style={{
+            backgroundColor: "#ef4444",
+            color: "#fff",
+            padding: "10px 20px",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer"
+          }}
+        >
+          Yes, Report
+        </button>
+        <button
+          onClick={() => setShowReportConfirm(false)}
+          style={{
+            backgroundColor: "#666",
+            color: "#fff",
+            padding: "10px 20px",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer"
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
             {/* Next Button */}
             <button
               onClick={handleNext}
               disabled={!socket || isReconnecting || showOfflineWarning}
               style={{ 
-                position: "absolute", 
-                bottom: "16px", 
-                right: "16px", 
-                padding: "8px 24px", 
-                borderRadius: "20px", 
-                border: "none", 
-                fontSize: "0.875rem", 
-                fontWeight: "500",
-                cursor: (!socket || isReconnecting || showOfflineWarning) ? "not-allowed" : "pointer",
-                transition: "all 0.3s",
-                backgroundColor: !socket || isReconnecting || showOfflineWarning 
-                  ? "#23272b" 
-                  : connectionLost 
-                    ? "#ef4444" 
-                    : "#19f0b8",
-                background: (!socket || isReconnecting || showOfflineWarning) 
-                  ? "#23272b" 
-                  : connectionLost 
-                    ? "#ef4444" 
-                    : "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)",
-                color: "#000000",
-                boxShadow: (!socket || isReconnecting || showOfflineWarning) ? "none" : "0 0 20px rgba(25, 240, 184, 0.4)"
-              }}
-              onMouseOver={(e) => {
-                if (socket && !isReconnecting && !showOfflineWarning) {
-                  e.target.style.boxShadow = connectionLost ? "0 0 20px rgba(239, 68, 68, 0.4)" : "0 0 25px rgba(25, 240, 184, 0.6)";
-                }
-              }}
-              onMouseOut={(e) => {
-                if (socket && !isReconnecting && !showOfflineWarning) {
-                  e.target.style.boxShadow = connectionLost ? "none" : "0 0 20px rgba(25, 240, 184, 0.4)";
-                }
-              }}
-            >
-              {showOfflineWarning ? "Offline" :
-               isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
-               connectionLost ? "Find Next Match" : 
-               "Next"}
-            </button>
+                position: "absolute",
+    bottom: "5px",
+    left: window.innerWidth <= 768 ? "255px" : "16px", // Center on desktop
+    right: window.innerWidth <= 768 ? "16px" : "16px", // Center on desktop
+    padding: "16px 24px",
+    width: window.innerWidth <= 768 ? "82px" : "calc(100% - 32px)", 
+    borderRadius: "999px", // Fully rounded
+    border: "none",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    backgroundColor: (!socket || isReconnecting || showOfflineWarning)
+      ? "#23272b"
+      : "#333333",  // Default dark grey
+    color: "#ffffff",
+    cursor: (!socket || isReconnecting || showOfflineWarning) ? "not-allowed" : "pointer",
+    transition: "all 0.3s ease",
+    zIndex: 10
+  }}
+  onMouseOver={(e) => {
+    if (socket && !isReconnecting && !showOfflineWarning) {
+      e.target.style.backgroundColor = "#ff5a1f"; // Orange on hover
+    }
+  }}
+  onMouseOut={(e) => {
+    if (socket && !isReconnecting && !showOfflineWarning) {
+      e.target.style.backgroundColor = "#333333"; // Reset to dark grey
+    }
+  }}
+>
+  {showOfflineWarning ? "Offline" :
+   isReconnecting ? `Reconnecting... (${reconnectionTimer}s)` : 
+   connectionLost ? "Find Next Match" : 
+   "Next"}
+</button>
             
             {/* Stranger Name Tag */}
             <div style={{ 
-              position: "absolute", 
-              bottom: "16px", 
-              left: "18px", 
-              backgroundColor: "rgba(0, 0, 0, 0.8)", 
-              padding: "4px 12px", 
-              borderRadius: "20px",
-              backdropFilter: "blur(10px)",
-              border: "1px solid #19f0b8"
-            }}>
-              <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#ffffff" }}>Stranger</span>
-            </div>
+  position: "absolute", 
+  top: "12px", 
+  left: "12px", 
+  backgroundColor: "#000", 
+  color: "#ff5a1f", 
+  border: "1px solid #953312", 
+  borderRadius: "12px", 
+  padding: "8px 15px", 
+  fontSize: "0.875rem", 
+  fontWeight: "500" 
+}}>
+  Stranger
+</div>
           </div>
         </div>
       </div>
@@ -1067,7 +1497,7 @@ if (authLoading) {
       {/* Right Side */}
 <div style={{ 
   width: window.innerWidth <= 768 ? "100%" : "40%", // Adjust width for mobile
-  backgroundColor: "#000000", 
+  backgroundColor: "#0A0A0A", 
   display: "flex", 
   flexDirection: "column",
   height: window.innerWidth <= 768 ? "50vh" : "100%",
@@ -1076,53 +1506,91 @@ if (authLoading) {
 }}>      
 
   {/* My Video - Top Right */}
-<div style={{ height:window.innerWidth<=768? "50vh" : "450px", padding: "5px", borderBottom: window.innerWidth<=768 ? "none" : "1px solid #222222" }}>
-          <div style={{ position: "relative", height: "100%" }}>
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                objectFit: "cover", 
-                borderRadius: "8px", 
-                backgroundColor: "#222222",
-                border: "1px solid #19f0b8"
-              }}
-            />
-            
-            {/* My Name Tag */}
-            <div style={{ 
-              position: "absolute", 
-              bottom: "13px", 
-              left: "8px", 
-              backgroundColor: "rgba(0, 0, 0, 0.8)", 
-              padding: "4px 12px", 
-              borderRadius: "20px",
-              backdropFilter: "blur(10px)",
-              border: "1px solid #19f0b8"
-            }}>
-              <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#ffffff" }}>{displayName}</span>
-            </div>
+<div style={{ 
+  height: window.innerWidth <= 768 ? "37vh" : "45vh", // Reduced height for better proportion
+  padding: "12px", 
+  borderBottom: window.innerWidth <= 768 ? "none" : "1.5px solidrgb(33, 33, 33)",
+  background: "linear-gradient(135deg, #000 0%, #000000 100%)",
+  borderRadius: "12px 12px 0 0"
+}}>
+  <div style={{ position: "relative", height: "100%" }}>
+    <video
+      ref={localVideoRef}
+      autoPlay
+      muted
+      playsInline
+      style={{ 
+        width: "100%", 
+        height: "100%", 
+        objectFit: "cover", 
+        borderRadius: "8px", 
+        backgroundColor: "#0A0A0A",
+        border: "2px solid #953312",
+        transform: "scaleX(-1)",
+        //boxShadow: "0 8px 25px rgba(255, 90, 31, 0.2)"
+      }}
+    />
 
-  {/* ADD THIS - Small Message Corner - Mobile Only */}
+    {/* My Name Tag */}
+    <div style={{ 
+      position: "absolute", 
+      top: "15px", 
+      right: "16px", 
+      backgroundColor: "rgba(0, 0, 0, 0.9)", 
+      color: "#ff5a1f", 
+      border: "1px solid #ff5a1f", 
+      borderRadius: "20px", 
+      padding: "6px 14px",
+      backdropFilter: "blur(10px)",
+      display: "flex",           
+  alignItems: "center",      
+  justifyContent: "center",  
+  minWidth: "80px"      
+      //boxShadow: "0 4px 12px rgba(255, 90, 31, 0.3)"
+    }}>
+      <span style={{ fontSize: "0.8rem", 
+        fontWeight: "600", 
+        color: "#ff5a1f",
+        textAlign: "center",
+    whiteSpace: "nowrap"
+        }}>
+        {displayName}
+      </span>
+    </div>
+
+    
+
+    <TipsDisplay 
+      tipsCount={myLifetimeTips}
+      justReceived={justReceivedTip}
+      isVisible={true}
+      position="self"
+    />
+
+
+  {/*Small Message Corner - Mobile Only */}
             {window.innerWidth <= 768 && showMessages && (
               <div style={{
-                position: "absolute",
-                top: "10px",
-                left: "10px",
+                position: "fixed",
+                zIndex: 1000, 
+                bottom: "58px",
+                right: "15px",
                 width: "200px",
-                maxHeight: "150px",
+                maxHeight: "250px",
                 background: "rgba(0, 0, 0, 0.8)",
                 backdropFilter: "blur(10px)",
-                borderRadius: "10px",
+                borderRadius: "20px",
                 padding: "8px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "4px",
-                overflowY: "auto"
+    
+                overflowY: "auto",
+                overflowX: "hidden",              // Prevent horizontal scroll
+scrollbarWidth: "thin",           // Firefox
+WebkitScrollbarWidth: "thin",     // Webkit browsers
+// Add smooth scrolling behavior
+scrollBehavior: "smooth"
               }}>
                 {/* Messages */}
                 {messages.slice(-5).map((message, index) => (
@@ -1209,10 +1677,14 @@ if (authLoading) {
 {/* Chat Section - Desktop Only */}
 {window.innerWidth > 768 && (
   <div style={{ 
-    height: "calc(100vh - 450px - 80px)", 
+    height: "55vh", // ADJUST CHAT HEIGHT
     overflow: "hidden",
     display: "flex", 
-    flexDirection: "column"
+    flexDirection: "column",
+    background: "linear-gradient(180deg, #0A0A0A 0%, #111 100%)",
+    borderRadius: "0 0 12px 12px",
+    
+    borderTop: "none"
   }}>
     <ChatBox
       messages={messages}
@@ -1225,64 +1697,28 @@ if (authLoading) {
       </div>
     </div>
 
-    {/* Debug Info */}
-    <div style={{ 
-      position: "absolute",
-      bottom: "10px",
-      left: "10px",
-      fontSize: "12px", 
-      opacity: "0.7",
-      background: "rgba(0, 0, 0, 0.8)",
-      padding: "4px 8px",
-      borderRadius: "4px",
-      color: "#cccccc",
-      border: "1px solid #222222"
-    }}>
-      Role: {isPolite ? "Polite" : "Impolite"} | Partner: {partnerId || "None"}
-    </div>
+   
 
 
   {/* Floating Bar with Emojis and Message Toggle - Mobile Only */}
 {window.innerWidth <= 768 && (
   <div style={{
-    position: "fixed",
-    bottom: "20px",
-    left: "10px",
-    right: "10px",
+    position: "absolute",
+    bottom: "10px",
+    left: "310px",
+    right: "22px",
     zIndex: 1000,
     background: "rgba(0, 0, 0, 0.7)",
     backdropFilter: "blur(10px)",
-    border: "1px solid rgba(25, 240, 184, 0.3)",
+    border: "1px solid rgba(240, 165, 25, 0.3)",
     borderRadius: "25px",
-    padding: "8px 12px",
+    padding: "5px 5px",
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    justifyContent: "space-between"
+    justifyContent: "centre"
   }}>
-    {/* Emoji Bar */}
-    <div style={{ display: "flex", gap: "8px" }}>
-      {['❤️', '😂', '😮', '😢', '😡', '🔥'].map((emoji, index) => (
-        <button
-          key={index}
-          onClick={() => handleSendMessage(emoji)}
-          style={{
-            background: "none",
-            border: "1px solid #222222",
-            borderRadius: "50%",
-            width: "32px",
-            height: "32px",
-            fontSize: "16px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
+    
     
     {/* Message Toggle Icon */}
     <button
@@ -1306,7 +1742,7 @@ if (authLoading) {
   </div>
 )}
 
-  </div>  // ← Keep this closing div
+  </div> 
 );
 }
 
