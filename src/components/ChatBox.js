@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-const TENOR_API_KEY = "AIzaSyB5aZJhIPDsM19JJMQKAqSnCtvpixD7OUE";
+const TENOR_API_KEY = process.env.REACT_APP_TENOR_API_KEY;
 
 export default function ChatBox({ messages, messageInput, setMessageInput, onSend }) {
   const messagesEndRef = useRef(null);

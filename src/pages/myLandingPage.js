@@ -70,6 +70,7 @@ const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const
         minHeight: '100vh',
         background: '#FFEED2',
         color: '#fff',
+        overflowX:'hidden',
       }}
     >
       
@@ -81,11 +82,11 @@ const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const
     flexDirection: isMobile ? 'column' : 'row',
     paddingBottom: isMobile ? 60 : 0,
     position: 'relative',
-    maxWidth: 1280, // 🔥 Limit total width
-    margin: '0 auto',
-    width: '100%',
-    paddingLeft: 20,
-    paddingRight: 20,
+    maxWidth: isMobile ? '100%' : 1280, // ✅ No fixed max width on mobile
+        margin: '0 auto',
+        width: '100%', // ✅ Full width, no 90%
+        padding: isMobile ? '0 10px' : '0 20px', // ✅ Smaller padding on mobile
+        boxSizing: 'border-box', // ✅ Include padding in width
   }}
 >
         {/* Top Navigation */}
@@ -262,7 +263,7 @@ maxWidth: 500,
                 fontSize: '1rem',
               }}
             >
-              Connect securely with strangers.
+              Connect securely with meaningful strangers.
             </p>
 
             {/* Country Selection */}
