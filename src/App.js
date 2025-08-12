@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getUserTips, initializeUser, saveTipSession, updateUserTips, reportUser } from './services/firebaseService';
 
 
-const SIGNAL_SERVER_URL = "http://localhost:3002";//"https://onstrays-july.onrender.com";
+const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
 
 function App() {
   
@@ -1703,40 +1703,37 @@ scrollBehavior: "smooth"
   {/* Floating Bar with Emojis and Message Toggle - Mobile Only */}
 {window.innerWidth <= 768 && (
   <div style={{
-    position: "absolute",
-    bottom: "10px",
-    left: "310px",
-    right: "22px",
-    zIndex: 1000,
-    background: "rgba(0, 0, 0, 0.7)",
-    backdropFilter: "blur(10px)",
-    border: "1px solid rgba(240, 165, 25, 0.3)",
-    borderRadius: "25px",
-    padding: "5px 5px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    justifyContent: "centre"
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    zIndex: 1001
   }}>
-    
-    
-    {/* Message Toggle Icon */}
     <button
       onClick={() => setShowMessages(!showMessages)}
       style={{
-        background: showMessages ? "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)" : "rgba(255, 255, 255, 0.3)",
-        border: "none",
+        background: showMessages 
+          ? "rgba(255, 255, 255, 0.2)" 
+          : "linear-gradient(135deg, #19f0b8 0%, #00ffcb 100%)",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
         borderRadius: "50%",
-        width: "32px",
-        height: "32px",
+        minWidth: "56px",
+        minHeight: "56px",
+        width: "56px",
+        height: "56px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        cursor: "pointer"
+        cursor: "pointer",
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+        backdropFilter: "blur(10px)",
+        transition: "all 0.3s ease"
       }}
     >
-      <span style={{ color: showMessages ? "#000000" : "#ffffff", fontSize: "16px" }}>
-        💬
+      <span style={{ 
+        color: showMessages ? "#ffffff" : "#000000", 
+        fontSize: "20px"
+      }}>
+        {showMessages ? "✕" : "💬"}
       </span>
     </button>
   </div>

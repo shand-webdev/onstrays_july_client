@@ -476,8 +476,10 @@ maxWidth: 500,
       <div
         style={{
           width: '100%',
-          padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
+          overflowX: 'hidden',
+          padding: isMobile ? '60px 10px 120px 10px' : '80px 40px 120px 40px',
           background: '#FFEED2',
+          boxSizing: 'border-box',
         }}
       >
         <div
@@ -505,13 +507,13 @@ maxWidth: 500,
             style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr',
-              gap: isMobile ? '40px' : '60px',
+              gap: isMobile ? '20px' : '60px',
             }}
           >
             <div style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  width: isMobile ? '120px' : '150px',
+                  width: isMobile ? '100px' : '150px',
                   height: isMobile ? '120px' : '150px',
                   margin: '0 auto 20px auto',
                   background: 'rgba(255, 255, 255, 0.3)',
@@ -629,9 +631,10 @@ maxWidth: 500,
       <div
         style={{
           width: '100%',
-          padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
+          overflowX: 'hidden',
+          padding: isMobile ? '60px 10px 120px 10px' : '80px 40px 120px 40px',
           background: '#FFEED2',
-          //borderTop: '1px solid #222',
+          boxSizing: 'border-box',
         }}
       >
         <div
@@ -657,7 +660,7 @@ maxWidth: 500,
             style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr',
-              gap: isMobile ? '40px' : '60px',
+              gap: isMobile ? '20px' : '60px',
             }}
           >
             {/* Card 1: Interest-Based Matching */}
@@ -742,7 +745,7 @@ maxWidth: 500,
                   fontWeight: 600,
                 }}
               >
-                Built for Privacy
+                Built for privacy
               </h3>
               <p
                 style={{
@@ -790,7 +793,7 @@ maxWidth: 500,
                   fontWeight: 600,
                 }}
               >
-                Validate Freely
+                Validate freely
               </h3>
               <p
                 style={{
@@ -811,8 +814,9 @@ maxWidth: 500,
       <div
         style={{
           width: '100%',
-          padding: isMobile ? '60px 20px 120px 20px' : '80px 40px 120px 40px',
+          padding: isMobile ? '60px 10px 120px 10px' : '80px 40px 120px 40px',
          background: '#FFEED2',
+         boxSizing: 'border-box',
 
           
         }}
@@ -854,7 +858,7 @@ maxWidth: 500,
                 textAlign: 'center',
               }}
             >
-              By using OnStrays, you agree to follow these guidelines:
+              By using Onstrays, you agree to follow these guidelines:
             </p>
             
             <div
@@ -931,7 +935,7 @@ maxWidth: 500,
                   margin: 0,
                 }}
               >
-                OnStrays is only for users 18 years and older. By using our platform, you confirm you meet this requirement.
+                Onstrays is only for users 18 years and older. By using our platform, you confirm you meet this requirement.
               </p>
             </div>
           </div>

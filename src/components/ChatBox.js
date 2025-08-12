@@ -103,7 +103,7 @@ useEffect(() => {
               <div style={{
                 maxWidth: 260,
                 background: m.sender === 'me' ? "#222" : "#222",
-                color: m.sender === 'me' ? "#000" : "#fff",
+                color: m.sender === 'me' ? "#fff" : "#fff",  //text colour inside message bubble
                 padding: "8px 8px",
                 borderRadius: '25px',
                 fontSize: "0.875rem"
