@@ -257,6 +257,37 @@ export const batchUpdateTips = async (updates) => {
   }
 };
 
+//backend batch sync
+
+export const batchSyncTipsFromBackend = async (tipDataArray) => {
+  try {
+    console.log('🔄 Backend syncing tips for', tipDataArray.length, 'users');
+    
+    const batch = writeBatch(db);
+    const timestamp = serverTimestamp();
+    
+    for (const { userId, given, received } of tipDataArray) {
+      const userRef = doc(db, 'users', userId);
+      
+      // Overwrite with Redis values (Redis is source of truth)
+      batch.set(userRef, {
+        totalTipsGiven: given,
+        totalTipsReceived: received,
+        lastSyncedAt: timestamp,
+        lastActiveAt: timestamp
+      }, { merge: true }); // Merge so we don't lose other fields
+    }
+    
+    await batch.commit();
+    console.log('✅ Backend sync completed');
+  } catch (error) {
+    console.error('❌ Backend sync failed:', error);
+    throw error;
+  }
+};
+
+
+
 // =============================================================================
 // USER PROFILE FUNCTIONS
 // =============================================================================

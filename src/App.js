@@ -8,10 +8,9 @@ import ChatBox from "./components/ChatBox";
 import TipButton from "./components/TipButton";
 import TipsDisplay from "./components/TipsDisplay"; // ADD THIS LINE
 import { motion, AnimatePresence } from 'framer-motion';
-import { getUserTips, initializeUser, saveTipSession, updateUserTips, reportUser } from './services/firebaseService';
+import { initializeUser, reportUser } from './services/firebaseService';
 
-
-const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";
+const SIGNAL_SERVER_URL = "https://onstrays-july.onrender.com";//"http://localhost:3002";//
 
 function App() {
   
@@ -153,35 +152,22 @@ const stopChatDurationTracking = useCallback(() => {
 
   // AUTH STATE LISTENER
  useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
     console.log("🔄 Auth state changed:", currentUser ? currentUser.displayName : "No user");
-    setUser(currentUser);
-    setAuthLoading(false);
+    setUser(currentUser || null);
+    setAuthLoading(false); // Ensure loading ends even if no user
     
+    // Reset any user-specific UI if logged out
     if (!currentUser) {
       setAgreed(false);
-    } else {
-      // ADD THIS - Load tips when user is detected (whether new login or already logged in)
-      try {
-        console.log('🔍 Loading tips for existing user:', currentUser.uid);
-        await initializeUser(currentUser.uid, {
-          email: currentUser.email,
-          displayName: currentUser.displayName
-        });
-        
-        const userTips = await getUserTips(currentUser.uid);
-        setMyTipsReceived(userTips.totalTipsReceived);
-        setMyLifetimeTips(userTips.totalTipsReceived);
-        
-        console.log('✅ Tips loaded for existing user:', userTips);
-      } catch (error) {
-        console.error('❌ Error loading tips for existing user:', error);
-      }
+      setMyTipsReceived(0);
+      setMyLifetimeTips(0);
     }
   });
 
   return () => unsubscribe();
 }, []);
+
 
   // [C] Login function
  const signInWithGoogle = async () => {
@@ -234,7 +220,7 @@ const tipsReceived = 0; // Or remove this function entirely
   console.log('💾 EXACT DATA BEING SAVED:', sessionData);
   
   try {
-    await saveTipSession(sessionData);
+    
     console.log('✅ Session saved to database');
   } catch (error) {
     console.error('❌ Failed to save session:', error);
@@ -648,36 +634,32 @@ const tipsReceived = 0; // Or remove this function entirely
     }
   }, []);
 
-  // Handle matched event
-  const handleMatched = useCallback(async (data) => {
+// Handle matched event
+const handleMatched = useCallback(async (data) => {
   console.log("🎯 Matched with:", data.partnerId, "UserId:", data.partnerUserId);
 
-    if (connectionTimerRef.current) {
-      clearTimeout(connectionTimerRef.current);
-      connectionTimerRef.current = null;
-    }
-
-    setPartnerId(data.partnerId);
-    setPartnerUserId(data.partnerUserId);
-    setIsPolite(data.role === "polite");
-    setStatus(`Connecting to ${data.partnerId}...`);
-
-     // Load partner's lifetime tips
-  if (data.partnerUserId) {
-    try {
-      const partnerTips = await getUserTips(data.partnerUserId);
-      setPartnerLifetimeTips(partnerTips.totalTipsReceived);
-      console.log("✅ Partner lifetime tips loaded:", partnerTips.totalTipsReceived);
-    } catch (error) {
-      console.log("❌ Could not load partner tips, using 0");
-      setPartnerLifetimeTips(0);
-    }
+  // Clear any existing connection timeout
+  if (connectionTimerRef.current) {
+    clearTimeout(connectionTimerRef.current);
+    connectionTimerRef.current = null;
   }
-    
 
+  // Set partner details
+  setPartnerId(data.partnerId);
+  setPartnerUserId(data.partnerUserId);
+  setIsPolite(data.role === "polite");
+  setStatus(`Connecting to ${data.partnerId}...`);
 
-// Reset tips state for new chat
-resetTipsState();
+  // Load partner's lifetime tips from BACKEND (not Firebase)
+  if (data.partnerUserId && socketRef.current) {
+    socketRef.current.emit('get_user_tips', { userId: data.partnerUserId }, (partnerStats) => {
+      console.log("✅ Partner lifetime tips loaded:", partnerStats.received);
+      setPartnerLifetimeTips(partnerStats.received || 0);
+    });
+  }
+
+  // Reset tips state for new chat
+  resetTipsState();
 
     const timer = setTimeout(() => {
       console.log("⏰ Connection timeout - auto skipping");
@@ -800,65 +782,83 @@ useEffect(() => {
       s.on("connect", () => {
   console.log("✅ Connected:", s.id);
   
-  // Send user preferences to backend for matching
-  const userPreferences = {
-  userId: user.uid,
-  interest: userInterest || "Any Interest", // Single interest, fallback to "Any Interest"
-  country: selectedCountry,
-  lookingFor: lookingFor,
-  joinedAt: Date.now()
-};
+  s.emit("join", {
+    userId: user.uid,
+    interest: userInterest || "Any Interest",
+    country: selectedCountry || "US"
+  });
   
-  console.log("📤 Sending user preferences:", userPreferences);
-  s.emit("join_queue", userPreferences);
+  // Load my lifetime tips from backend
+  s.emit("get_my_tips", (stats) => {
+    console.log("📊 Loaded my tips from backend:", stats);
+    
+    // If backend has no data but we loaded from Firebase earlier, migrate it
+    if (stats.received === 0 && stats.given === 0 && myLifetimeTips > 0) {
+      console.log("🔄 Migrating Firebase tips to backend...");
+      
+      fetch(`${SIGNAL_SERVER_URL}/admin/migrate-user-tips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          tipsGiven: myLifetimeTips, // Loaded from Firebase earlier
+          tipsReceived: myTipsReceived
+        })
+      }).then(() => {
+        console.log("✅ Migration complete");
+        // Reload tips from backend
+        s.emit("get_my_tips", (newStats) => {
+          setMyLifetimeTips(newStats.received);
+        });
+      });
+    } else {
+      setMyLifetimeTips(stats.received);
+    }
+  });
   
-  setStatus("Looking for match with your interests...");
+  setStatus("Looking for match...");
 });
 
 s.emit("test-connection", { message: "Hello from frontend" });
 
 
-      s.on("matched", handleMatched);
-      s.on("partner_disconnected", handlePartnerDisconnected);
-      s.on("partner_next", handlePartnerNext);
-      s.on("offer", (data) => {
-        console.log("🎯 OFFER EVENT RECEIVED:", data);
-        handleOffer(data);
-      });
-      s.on("answer", handleAnswer);
-      s.on("ice-candidate", handleIceCandidate);
+     s.on("matched", handleMatched);
+s.on("partner_disconnected", handlePartnerDisconnected);
+s.on("partner_next", handlePartnerNext);
+s.on("offer", (data) => {
+  console.log("🎯 OFFER EVENT RECEIVED:", data);
+  handleOffer(data);
+});
+s.on("answer", handleAnswer);
+s.on("ice-candidate", handleIceCandidate);
 
-         // Listen for tip toggle events from partner
-s.on("tip_toggle", (data) => {
-  console.log("💖 Received tip event:", data);
-  
-  const { fromUserId, action } = data;
-  
-   if (action === "tip") {
-    // Just update my lifetime tips display (partner will handle their own Firebase writes)
-    setMyLifetimeTips(prev => prev + 1);
-    setJustReceivedTip(true);
-    setTimeout(() => setJustReceivedTip(false), 2000);
-    console.log("✅ My tips display updated");
-  } else if (action === "untip") {
-    setMyLifetimeTips(prev => Math.max(0, prev - 1));
-    setJustReceivedTip(false);
-    console.log("✅ My tips display updated");
-  }
+// NEW TIP LISTENERS (REDIS-BACKED)
+s.on('tip_confirmed', (data) => {
+  console.log("✅ Tip confirmed by backend:", data);
+  setMyLifetimeTips(data.myTipsReceived);
+  setPartnerLifetimeTips(data.partnerTipsReceived);
 });
 
-      s.on("test-response", (data) => {
+s.on('tip_received', (data) => {
+  console.log("💖 Received tip from partner:", data);
+  setMyLifetimeTips(data.myNewTotal);
+  setJustReceivedTip(true);
+  setTimeout(() => setJustReceivedTip(false), 2000);
+});
+
+s.on("tip_error", (data) => {
+  console.error("❌ Tip error from server:", data);
+});
+
+s.on("test-response", (data) => {
   console.log("🧪 FRONTEND: Test response received:", data);
 });
-      
-     
-     s.on("message", (data) => {
-  console.log("📨 RECEIVED MESSAGE EVENT:", data);
 
+s.on("message", (data) => {
+  console.log("📨 RECEIVED MESSAGE EVENT:", data);
   const formatted = data.type === "gif"
     ? { sender: "stranger", type: "gif", url: data.url, timestamp: new Date() }
     : { sender: "stranger", type: "text", text: data.text, timestamp: new Date() };
-
   setMessages(prev => [...prev, formatted]);
 });
 
@@ -876,7 +876,7 @@ s.on("tip_error", (data) => {
   };
 
   initConnection();
-}, [agreed, user, socket, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
+}, [agreed, user, socket, selectedCountry, userInterest, handleMatched, handlePartnerDisconnected, handlePartnerNext, handleOffer, handleAnswer, handleIceCandidate]);
 
 const handleSendMessage = (customMessage = null) => {
   // More specific GIF detection
@@ -1014,8 +1014,7 @@ useEffect(() => {
   }
 };
 
-
-// Real-time Firebase tip toggle - Replace your existing handleTipToggle
+//writing tips backend
 const handleTipToggle = useCallback(async (newTipState) => {
   if (!partnerId || !user || !partnerUserId) {
     console.log("❌ Cannot tip: missing data", { partnerId, user: !!user, partnerUserId });
@@ -1024,7 +1023,7 @@ const handleTipToggle = useCallback(async (newTipState) => {
 
   // Prevent rapid spam clicking
   const now = Date.now();
-  if (now - (lastTipTime.current || 0) < 5000) {
+  if (now - (lastTipTime.current || 0) < 1000) {
     console.log("⏳ Tip cooldown - please wait");
     return;
   }
@@ -1032,76 +1031,27 @@ const handleTipToggle = useCallback(async (newTipState) => {
 
   console.log(`🌟 ${newTipState ? 'Giving' : 'Removing'} tip to partner:`, partnerUserId);
 
-  try {
-    // 1. Update local UI state immediately (optimistic update)
-    setCurrentlyTippedUsers(prev => {
-      const newSet = new Set(prev);
-      if (newTipState) {
-        newSet.add(partnerId);
-      } else {
-        newSet.delete(partnerId);
-      }
-      return newSet;
-    });
-
-    // 2. Update partner's visible tip count (optimistic)
-    setPartnerLifetimeTips(prev => newTipState ? prev + 1 : prev - 1);
-
-    // 3. Write to Firebase immediately (both users)
-    const writePromises = [];
-    
+  // Optimistic UI update (instant visual feedback)
+  setCurrentlyTippedUsers(prev => {
+    const newSet = new Set(prev);
     if (newTipState) {
-      // Giving a tip
-      writePromises.push(
-        updateUserTips(partnerUserId, { tipsReceivedChange: 1 }),
-        updateUserTips(user.uid, { tipsGivenChange: 1 })
-      );
-      console.log("📈 Writing to Firebase: +1 received for partner, +1 given for me");
+      newSet.add(partnerId);
     } else {
-      // Removing a tip
-      writePromises.push(
-        updateUserTips(partnerUserId, { tipsReceivedChange: -1 }),
-        updateUserTips(user.uid, { tipsGivenChange: -1 })
-      );
-      console.log("📉 Writing to Firebase: -1 received for partner, -1 given for me");
+      newSet.delete(partnerId);
     }
+    return newSet;
+  });
 
-    // Execute Firebase writes
-    await Promise.all(writePromises);
-    console.log("✅ Firebase writes completed successfully");
-
-    // 4. Emit socket event to partner (for real-time UI updates)
-    if (socketRef.current) {
-      socketRef.current.emit("tip_toggle", {
-        targetUserId: partnerId,
-        fromUserId: user.uid,
-        action: newTipState ? "tip" : "untip",
-        timestamp: Date.now()
-      });
-      console.log("📤 Socket event sent to partner");
-    }
-
-    console.log(`✅ Tip ${newTipState ? 'given' : 'removed'} successfully`);
-
-  } catch (error) {
-    console.error("❌ Error in tip toggle:", error);
-    
-    // Rollback optimistic updates on error
-    setCurrentlyTippedUsers(prev => {
-      const rollbackSet = new Set(prev);
-      if (newTipState) {
-        rollbackSet.delete(partnerId); // Undo the add
-      } else {
-        rollbackSet.add(partnerId); // Undo the remove
-      }
-      return rollbackSet;
+  // Send to backend - backend handles everything
+  if (socketRef.current) {
+    socketRef.current.emit("tip_toggle", {
+      targetUserId: partnerUserId,
+      fromUserId: user.uid,
+      action: newTipState ? "tip" : "untip"
     });
-    
-    setPartnerLifetimeTips(prev => newTipState ? prev - 1 : prev + 1);
-    
-    // Show error to user
-    alert("Failed to update tip. Please try again.");
+    console.log("📤 Tip request sent to backend");
   }
+
 }, [partnerId, user, partnerUserId]);
 
 // Add this ref for tip cooldown
@@ -1442,8 +1392,8 @@ if (authLoading) {
               style={{ 
                 position: "absolute",
     bottom: "5px",
-    left: window.innerWidth <= 768 ? "255px" : "16px", // Center on desktop
-    right: window.innerWidth <= 768 ? "16px" : "16px", // Center on desktop
+    left: window.innerWidth <= 768 ? "auto"  : "16px", // Center on desktop
+    right: "16px",
     padding: "16px 24px",
     width: window.innerWidth <= 768 ? "82px" : "calc(100% - 32px)", 
     borderRadius: "999px", // Fully rounded
@@ -1458,14 +1408,26 @@ if (authLoading) {
     transition: "all 0.3s ease",
     zIndex: 10
   }}
-  onMouseOver={(e) => {
+  onMouseEnter={(e) => {
     if (socket && !isReconnecting && !showOfflineWarning) {
-      e.target.style.backgroundColor = "#ff5a1f"; // Orange on hover
+      e.target.style.backgroundColor = "#ff5a1f";
     }
   }}
-  onMouseOut={(e) => {
+  onMouseLeave={(e) => {
     if (socket && !isReconnecting && !showOfflineWarning) {
-      e.target.style.backgroundColor = "#333333"; // Reset to dark grey
+      e.target.style.backgroundColor = "#333333";
+    }
+  }}
+  onTouchStart={(e) => {
+    if (socket && !isReconnecting && !showOfflineWarning) {
+      e.target.style.backgroundColor = "#ff5a1f";
+    }
+  }}
+  onTouchEnd={(e) => {
+    if (socket && !isReconnecting && !showOfflineWarning) {
+      setTimeout(() => {
+        e.target.style.backgroundColor = "#333333";
+      }, 150); // Small delay for visual feedback
     }
   }}
 >
@@ -1507,11 +1469,14 @@ if (authLoading) {
 
   {/* My Video - Top Right */}
 <div style={{ 
-  height: window.innerWidth <= 768 ? "37vh" : "45vh", // Reduced height for better proportion
+height: window.innerWidth <= 768 ? "320px" : "45vh", // Fixed pixel height for mobile
+  maxHeight: window.innerWidth <= 768 ? "35vh" : "45vh", // Safety constraint
+  minHeight: window.innerWidth <= 768 ? "280px" : "400px", // Minimum usable height  
   padding: "12px", 
   borderBottom: window.innerWidth <= 768 ? "none" : "1.5px solidrgb(33, 33, 33)",
   background: "linear-gradient(135deg, #000 0%, #000000 100%)",
-  borderRadius: "12px 12px 0 0"
+  borderRadius: "12px 12px 0 0",
+  overflow: "hidden"
 }}>
   <div style={{ position: "relative", height: "100%" }}>
     <video
@@ -1535,11 +1500,11 @@ if (authLoading) {
     <div style={{ 
       position: "absolute", 
       top: "15px", 
-      right: "16px", 
+      left: "15px", 
       backgroundColor: "rgba(0, 0, 0, 0.9)", 
       color: "#ff5a1f", 
       border: "1px solid #ff5a1f", 
-      borderRadius: "20px", 
+      borderRadius: "8px", 
       padding: "6px 14px",
       backdropFilter: "blur(10px)",
       display: "flex",           
@@ -1700,7 +1665,7 @@ scrollBehavior: "smooth"
    
 
 
-  {/* Floating Bar with Emojis and Message Toggle - Mobile Only */}
+  {/* Floating Toggle Button - Mobile Only */}
 {window.innerWidth <= 768 && (
   <div style={{
     position: "fixed",

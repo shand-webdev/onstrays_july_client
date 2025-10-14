@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
 import LegalPages from './LegalPages';
 
+
+// ADD THIS after your imports, before the main component
+const CountryFlag = ({ countryCode }) => (
+  <img 
+    src={`https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`}
+    alt={countryCode}
+    style={{ 
+      width: '32px', 
+      height: '24px',
+      borderRadius: '4px',
+      objectFit: 'cover',
+      border: '1px solid rgba(0,0,0,0.1)'
+    }}
+  />
+);
+
+
 export default function LandingPage({ onAgreeAndMaybeLogin, user, signInWithGoogle, onStartVideoChat }) {  
-  const [selectedCountry, setSelectedCountry] = useState('🇮🇳');
+const [selectedCountry, setSelectedCountry] = useState('IN'); // Changed from '🇮🇳'
   const [lookingFor, setLookingFor] = useState('Any');
 const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const [showLegalPages, setShowLegalPages] = useState(false);
   const [legalPageType, setLegalPageType] = useState('privacy');
@@ -15,22 +32,19 @@ const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const
   console.log("showLegalPages:", showLegalPages)
 
   const countries = [
-    '🇮🇳', '🇺🇸', '🇬🇧', '🇯🇵', '🇩🇪',
-    '🇫🇷', '🇨🇦', '🇦🇺', '🇧🇷', '🇰🇷'
-  ];
+  { code: 'IN', name: 'India' },
+  { code: 'US', name: 'USA' },
+  { code: 'GB', name: 'UK' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'KR', name: 'South Korea' },
+];
 
-  const countryFlags = {
-    '🇮🇳': 'in',
-    '🇺🇸': 'us',
-    '🇬🇧': 'gb',
-    '🇯🇵': 'jp',
-    '🇩🇪': 'de',
-    '🇫🇷': 'fr',
-    '🇨🇦': 'ca',
-    '🇦🇺': 'au',
-    '🇧🇷': 'br',
-    '🇰🇷': 'kr',
-  };
+ 
 
   const interests = [
     { label: 'Music', emoji: '🎵' },
@@ -65,14 +79,15 @@ const [selectedInterest, setSelectedInterest] = useState("Any Interest");  const
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#FFEED2',
-        color: '#fff',
-        overflowX:'hidden',
-      }}
-    >
+  <div
+    style={{
+      minHeight: '100vh',
+      background: '#FFEED2',
+      color: '#fff',
+      overflowX:'hidden',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif'
+    }}
+  >
       
       {/* Landing Page Section */}
      <div
@@ -279,36 +294,31 @@ maxWidth: 500,
                   marginBottom: 8,
                 }}
               >
-                {countries.map((country) => (
-                  <button
-                    key={country}
-                    style={{
-                      aspectRatio: '1',
-                      border: '1px solid #333',
-                      borderRadius: 14,
-                      background: selectedCountry === country ? '#B15739' : '#ffffff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                     justifyContent: 'center',
-
-                      padding: 6,
-                      color: selectedCountry === country ? '#CC5407' : '#fff',
-                      transition: 'all 0.3s',
-                      borderColor: selectedCountry === country ? '#993616' : '#333',
-                      width: 50,
-                      height: 40,
-                    }}
-                    onClick={() => setSelectedCountry(country)}
-                  >
-                    <img
-                      src={`https://flagcdn.com/w40/${countryFlags[country]}.png`}
-                      alt={country}
-                      style={{ width: 32, height: 24, borderRadius: 4, marginBottom: 4 }}
-                    />
-                  </button>
-                ))}
+               {countries.map((country) => (
+  <button
+    key={country.code}
+    onClick={() => setSelectedCountry(country.code)}
+    style={{
+      aspectRatio: '1',
+      border: '1px solid #333',
+      borderRadius: 14,
+      background: selectedCountry === country.code ? '#B15739' : '#ffffff',  // CHANGE: country.code
+      cursor: 'pointer',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 6,
+      color: selectedCountry === country.code ? '#CC5407' : '#fff',  // CHANGE: country.code
+      transition: 'all 0.3s',
+      borderColor: selectedCountry === country.code ? '#993616' : '#333',  // CHANGE: country.code
+      width: 50,
+      height: 40,
+    }}
+  >
+    <CountryFlag countryCode={country.code} />
+  </button>
+))}
               </div>
             </div>
 
@@ -450,8 +460,7 @@ maxWidth: 500,
   }}
   onClick={() => {
     if (user) {
-      onStartVideoChat(selectedInterest, selectedCountry, lookingFor);
-    } else {
+onStartVideoChat(selectedInterest, selectedCountry, lookingFor)    } else {
       if (isMobile) {
         localStorage.setItem('onstrays_agreed', 'yes');
       }

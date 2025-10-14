@@ -18,10 +18,10 @@ const TipsDisplay = ({
       style={{
         position: "absolute",
 bottom: position === "self" 
-  ? (window.innerWidth <= 768 ? "10px" : "15px")    // Your video position
-  : (window.innerWidth <= 768 ? "55px" : "580px"), // Partner video position
+  ? (window.innerWidth <= 768 ? "60px" : "15px")    // Your video position
+  : (window.innerWidth <= 768 ? "570px" : "580px"), // Partner video position
   
-left: "10px", // Same left for both
+left: "16px", // Same left for both
 width: window.innerWidth <= 768 ? "calc(100% - 32px)" : "auto",
 maxWidth: window.innerWidth <= 768 ? "100px" : "none",
         
